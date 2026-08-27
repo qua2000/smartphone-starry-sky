@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>スマホ星空 — ベガ1個のAR表示</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #06111f;
+      --panel: rgba(5, 16, 31, 0.88);
+      --text: #f6f8ff;
+      --subtext: #c6d2e9;
+      --accent: #a9d8ff;
+      --accent-strong: #ffffff;
+      --danger: #ffb4ab;
+      --success: #a8e6c3;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100svh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    }
+
+    .app {
+      min-height: 100svh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    header, footer {
+      padding: 13px 18px;
+      background: var(--panel);
+    }
+
+    h1 { margin: 0; font-size: 1.04rem; }
+
+    header p, footer p, .controls p {
+      margin: 5px 0 0;
+      color: var(--subtext);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .camera-area {
+      position: relative;
+      min-height: 50svh;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      background: #000;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+
+    /* ベガの計算上の位置を表す、小さな星形のマーカーです。 */
+    .star-marker {
+      position: absolute;
+      z-index: 2;
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--accent-strong);
+      border-radius: 50%;
+      box-shadow: 0 0 0 4px rgba(169, 216, 255, 0.23), 0 0 20px 4px rgba(169, 216, 255, 0.95);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    }
+
+    .star-marker::before,
+    .star-marker::after {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      content: "";
+      background: var(--accent-strong);
+      transform: translate(-50%, -50%);
+    }
+
+    .star-marker::before { width: 34px; height: 1px; }
+    .star-marker::after { width: 1px; height: 34px; }
+
+    .message {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: linear-gradient(180deg, rgba(6, 17, 31, 0.45), rgba(6, 17, 31, 0.9));
+      text-align: center;
+    }
+
+    .message[hidden], .info-card[hidden] { display: none; }
+    .message-box { max-width: 340px; }
+    .message p { margin: 0 0 16px; color: var(--subtext); line-height: 1.7; }
+
+    .info-card {
+      position: absolute;
+      right: 9px;
+      bottom: 9px;
+      left: 9px;
+      z-index: 3;
+      padding: 11px 12px;
+      border-radius: 15px;
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+    }
+
+    .info-card h2 { margin: 0 0 7px; font-size: 0.87rem; }
+
+    dl {
+      display: grid;
+      grid-template-columns: 7em 1fr;
+      gap: 3px 8px;
+      margin: 0;
+      font-size: 0.76rem;
+      line-height: 1.4;
+    }
+
+    dt { color: var(--subtext); }
+    dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .star-value { color: var(--accent); font-weight: 800; }
+
+    .controls {
+      display: grid;
+      gap: 7px;
+      padding: 11px 18px 8px;
+      background: var(--panel);
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      color: #0b2237;
+      background: var(--accent);
+      font-size: 0.94rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button.secondary { color: var(--text); background: rgba(255, 255, 255, 0.12); }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    .error { color: var(--danger) !important; font-weight: 700; }
+    .success { color: var(--success) !important; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>スマホ星空：ベガ1個のAR表示</h1>
+      <p>ベガの赤経・赤緯を、現在地・時刻で方位角・高度に変換して表示します。</p>
+    </header>
+
+    <section class="camera-area" aria-label="カメラ映像">
+      <video id="camera" autoplay playsinline muted></video>
+      <div id="vegaMarker" class="star-marker" hidden aria-label="ベガの予測位置"></div>
+
+      <section id="infoCard" class="info-card" hidden aria-live="polite">
+        <h2>ベガの位置を計算する材料と結果</h2>
+        <dl>
+          <dt>現在時刻</dt>
+          <dd id="timeValue">未開始</dd>
+          <dt>緯度・経度</dt>
+          <dd id="locationValue">未取得</dd>
+          <dt>スマホの方位</dt>
+          <dd id="headingValue">未取得</dd>
+          <dt>ベガの方位角</dt>
+          <dd id="vegaAzimuthValue" class="star-value">未計算</dd>
+          <dt>ベガの高度</dt>
+          <dd id="vegaAltitudeValue" class="star-value">未計算</dd>
+          <dt>表示の状態</dt>
+          <dd id="vegaStateValue" class="star-value">未開始</dd>
+        </dl>
+      </section>
+
+      <div id="message" class="message">
+        <div class="message-box">
+          <p id="status">カメラ、現在地、スマホの向きを順に取得してから、ベガの予測位置を表示します。</p>
+          <button id="cameraButton" type="button">カメラを開始する</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="操作ボタン">
+      <button id="locationButton" class="secondary" type="button" disabled>現在地を取得する</button>
+      <button id="orientationButton" class="secondary" type="button" disabled>スマホの向きを取得する</button>
+      <button id="vegaButton" type="button" disabled>ベガの予測位置を表示する</button>
+      <p id="actionStatus">初めて使うときは、カメラと位置情報の使用を許可してください。位置情報は保存・送信しません。</p>
+    </section>
+
+    <footer>
+      <p>白青色の印は、カメラがベガを画像認識した結果ではなく、計算上の予測位置です。高度が10°以下のベガは表示しません。</p>
+    </footer>
+  </main>
+
+  <!-- Astronomy Engineは、恒星の赤経・赤緯を方位角・高度へ変換するために使います。 -->
+  <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+  <script>
+    // -------------------------------------------------------------------------
+    // 1. ベガの天文データ
+    // -------------------------------------------------------------------------
+    // SIMBADに掲載されたICRS/J2000座標を、小数の時・度へ直した値です。
+    // RA  = 18h 36m 56.33635s = 18.615648986 時
+    // Dec = +38° 47' 01.2802" = +38.783688944 度
+    // 固有運動はこの最初のサンプルでは扱いません。短期の学習には十分です。
+    const VEGA = {
+      id: "vega",
+      nameJa: "ベガ",
+      nameEn: "Vega",
+      raHoursJ2000: 18.615648986,
+      decDegJ2000: 38.783688944,
+      magnitude: 0.03
+    };
+
+    // -------------------------------------------------------------------------
+    // 2. 画面上の部品を取得する
+    // -------------------------------------------------------------------------
+    const video = document.getElementById("camera");
+    const message = document.getElementById("message");
+    const status = document.getElementById("status");
+    const cameraButton = document.getElementById("cameraButton");
+    const locationButton = document.getElementById("locationButton");
+    const orientationButton = document.getElementById("orientationButton");
+    const vegaButton = document.getElementById("vegaButton");
+    const vegaMarker = document.getElementById("vegaMarker");
+    const infoCard = document.getElementById("infoCard");
+    const timeValue = document.getElementById("timeValue");
+    const locationValue = document.getElementById("locationValue");
+    const headingValue = document.getElementById("headingValue");
+    const vegaAzimuthValue = document.getElementById("vegaAzimuthValue");
+    const vegaAltitudeValue = document.getElementById("vegaAltitudeValue");
+    const vegaStateValue = document.getElementById("vegaStateValue");
+    const actionStatus = document.getElementById("actionStatus");
+
+    // -------------------------------------------------------------------------
+    // 3. アプリの現在の状態を入れておく変数
+    // -------------------------------------------------------------------------
+    let currentCoordinates = null;
+    let currentOrientation = null;
+    let vegaOverlayEnabled = false;
+    let clockTimerId = null;
+    let vegaTimerId = null;
+    let orientationListening = false;
+
+    function normalizeDegrees(degrees) {
+      return (degrees % 360 + 360) % 360;
+    }
+
+    function degreesToRadians(degrees) {
+      return degrees * Math.PI / 180;
+    }
+
+    function directionName(degrees) {
+      const names = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
+      return names[Math.round(normalizeDegrees(degrees) / 45) % 8];
+    }
+
+    // 0°と360°の境目を自然につなげながら、角度をなめらかにします。
+    function smoothAngle(previous, next, factor) {
+      const difference = ((next - previous + 540) % 360) - 180;
+      return normalizeDegrees(previous + difference * factor);
+    }
+
+    function smoothValue(previous, next, factor) {
+      return previous + (next - previous) * factor;
+    }
+
+    function clamp(value, minimum, maximum) {
+      return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    function updateClock() {
+      timeValue.textContent = new Date().toLocaleString("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. カメラ・位置情報・端末の姿勢を取得する
+    // -------------------------------------------------------------------------
+    async function startCamera() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        status.textContent = "このブラウザではカメラ機能を利用できません。Chromeで開いてください。";
+        status.className = "error";
+        return;
+      }
+
+      cameraButton.disabled = true;
+      status.textContent = "カメラの許可を待っています…";
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+
+        message.hidden = true;
+        infoCard.hidden = false;
+        locationButton.disabled = false;
+        orientationButton.disabled = false;
+        updateClock();
+        clockTimerId ??= window.setInterval(updateClock, 1000);
+      } catch (error) {
+        console.error(error);
+        status.textContent = "カメラを開始できませんでした。Chromeのカメラ許可を確認してください。";
+        status.className = "error";
+        cameraButton.disabled = false;
+      }
+    }
+
+    function updateDisplayButton() {
+      // 現在地と端末姿勢の両方がそろった時だけ、ベガ表示ボタンを使えるようにします。
+      vegaButton.disabled = currentCoordinates === null || currentOrientation === null;
+    }
+
+    function getCurrentLocation() {
+      if (!navigator.geolocation) {
+        actionStatus.textContent = "このブラウザでは位置情報を利用できません。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      locationButton.disabled = true;
+      actionStatus.textContent = "位置情報の許可を待っています…";
+      actionStatus.className = "";
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          currentCoordinates = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
+          locationValue.textContent = `${currentCoordinates.latitude.toFixed(4)}°, ${currentCoordinates.longitude.toFixed(4)}°`;
+          locationButton.disabled = false;
+          locationButton.textContent = "現在地を更新する";
+          actionStatus.textContent = "現在地を取得しました。次にスマホの向きを取得してください。";
+          actionStatus.className = "success";
+          updateDisplayButton();
+        },
+        (error) => {
+          const messages = {
+            [error.PERMISSION_DENIED]: "位置情報の使用が許可されませんでした。Chromeの確認画面で「許可」を選んでください。",
+            [error.POSITION_UNAVAILABLE]: "現在地を確認できませんでした。スマホ本体の位置情報設定を確認してください。",
+            [error.TIMEOUT]: "位置情報の取得に時間がかかりました。もう一度お試しください。"
+          };
+          actionStatus.textContent = messages[error.code] || "位置情報を取得できませんでした。";
+          actionStatus.className = "error";
+          locationButton.disabled = false;
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+
+    function handleOrientation(event) {
+      if (event.alpha === null || event.beta === null || event.gamma === null) return;
+
+      // 端末の微小な揺れを抑えるため、値をなめらかにします。
+      const factor = 0.18;
+      currentOrientation = currentOrientation === null
+        ? { alpha: event.alpha, beta: event.beta, gamma: event.gamma }
+        : {
+            alpha: smoothAngle(currentOrientation.alpha, event.alpha, factor),
+            beta: smoothValue(currentOrientation.beta, event.beta, factor),
+            gamma: smoothValue(currentOrientation.gamma, event.gamma, factor)
+          };
+
+      // Androidでは概ね「360 - alpha」でコンパス方位の目安になります。
+      const heading = normalizeDegrees(360 - currentOrientation.alpha);
+      headingValue.textContent = `${heading.toFixed(0)}°（${directionName(heading)}・目安）`;
+      updateDisplayButton();
+
+      // 表示中なら、スマホが動くたびにベガの画面上の位置を更新します。
+      if (vegaOverlayEnabled) updateVegaOverlay();
+    }
+
+    async function startOrientation() {
+      if (!("DeviceOrientationEvent" in window)) {
+        actionStatus.textContent = "このスマホまたはブラウザでは、向きの情報を利用できません。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      try {
+        // iPhoneなど、明示的な許可が必要なブラウザにだけ許可を求めます。
+        if (typeof DeviceOrientationEvent.requestPermission === "function") {
+          const permission = await DeviceOrientationEvent.requestPermission(true);
+          if (permission !== "granted") throw new Error("permission-denied");
+        }
+
+        if (!orientationListening) {
+          window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+          window.addEventListener("deviceorientation", handleOrientation, true);
+          orientationListening = true;
+        }
+
+        orientationButton.textContent = "向きを取得中";
+        actionStatus.textContent = "スマホを少し動かし、方位の数字が表示されることを確認してください。";
+        actionStatus.className = "success";
+      } catch (error) {
+        console.error(error);
+        actionStatus.textContent = "向きの情報を開始できませんでした。ブラウザとスマホのセンサー設定を確認してください。";
+        actionStatus.className = "error";
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. ベガの赤経・赤緯を、現在地・時刻で方位角・高度へ変換する
+    // -------------------------------------------------------------------------
+    function calculateVegaHorizontalPosition(date, latitude, longitude) {
+      // Astronomy Engineが、外部CDNから正しく読み込めたかを先に確認します。
+      if (typeof Astronomy === "undefined") {
+        throw new Error("Astronomy Engineを読み込めませんでした。");
+      }
+
+      const time = new Astronomy.AstroTime(date);
+      const observer = new Astronomy.Observer(latitude, longitude, 0);
+
+      // 赤経（時）を度へ変え、ベガのJ2000座標を3次元の矢印にします。
+      const vegaEqjSphere = new Astronomy.Spherical(
+        VEGA.decDegJ2000,
+        VEGA.raHoursJ2000 * 15,
+        1
+      );
+      const vegaEqjVector = Astronomy.VectorFromSphere(vegaEqjSphere, time);
+
+      // J2000基準の座標を、観測する日付の赤道座標へ変換します。
+      const vegaEqdVector = Astronomy.RotateVector(
+        Astronomy.Rotation_EQJ_EQD(time),
+        vegaEqjVector
+      );
+      const vegaEqd = Astronomy.EquatorFromVector(vegaEqdVector);
+
+      // 最後に、観測地から見た方位角・高度を計算します。
+      // "normal" は大気による見かけの屈折を簡易的に反映する指定です。
+      return Astronomy.Horizon(time, observer, vegaEqd.ra, vegaEqd.dec, "normal");
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. 方位角・高度を、カメラ画面上のX・Y位置へ変換する共通処理
+    // -------------------------------------------------------------------------
+    function rotateX(vector, angle) {
+      const [x, y, z] = vector;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      return [x, y * cosine - z * sine, y * sine + z * cosine];
+    }
+
+    function rotateY(vector, angle) {
+      const [x, y, z] = vector;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      return [x * cosine + z * sine, y, -x * sine + z * cosine];
+    }
+
+    function rotateZ(vector, angle) {
+      const [x, y, z] = vector;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      return [x * cosine - y * sine, x * sine + y * cosine, z];
+    }
+
+    function projectAzimuthAltitudeToScreen(azimuthDeg, altitudeDeg) {
+      if (currentOrientation === null) return null;
+
+      // 地平座標を、東(x)・北(y)・上(z)を基準とした3次元の矢印へ変換します。
+      const azimuthRad = degreesToRadians(azimuthDeg);
+      const altitudeRad = degreesToRadians(altitudeDeg);
+      const worldVector = [
+        Math.cos(altitudeRad) * Math.sin(azimuthRad),
+        Math.cos(altitudeRad) * Math.cos(azimuthRad),
+        Math.sin(altitudeRad)
+      ];
+
+      // スマホのalpha・beta・gammaの逆回転を順に適用し、スマホ基準の矢印にします。
+      let deviceVector = rotateZ(worldVector, -degreesToRadians(currentOrientation.alpha));
+      deviceVector = rotateX(deviceVector, -degreesToRadians(currentOrientation.beta));
+      deviceVector = rotateY(deviceVector, -degreesToRadians(currentOrientation.gamma));
+
+      // 背面カメラは、スマホ座標の-z方向を向くという仮定です。
+      const forward = -deviceVector[2];
+      if (forward <= 0.01) return null;
+
+      // まずは縦の視野角を43°とする近似を使います。
+      // 機種ごとに異なるため、実際のベガへぴったり合わせるには校正が必要です。
+      const verticalFov = degreesToRadians(43);
+      const aspectRatio = video.clientWidth / video.clientHeight;
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspectRatio);
+      const normalizedX = deviceVector[0] / forward / Math.tan(horizontalFov / 2);
+      const normalizedY = deviceVector[1] / forward / Math.tan(verticalFov / 2);
+
+      // 最初は少し余裕を持たせ、視野の端で点滅しにくくします。
+      const visibilityLimit = vegaMarker.hidden ? 0.92 : 1.18;
+      if (Math.abs(normalizedX) > visibilityLimit || Math.abs(normalizedY) > visibilityLimit) {
+        return null;
+      }
+
+      // 少し外側へ動いた場合は、画面端に留めて急な消失を防ぎます。
+      return {
+        x: (clamp(normalizedX, -0.94, 0.94) + 1) * 50,
+        y: (1 - clamp(normalizedY, -0.94, 0.94)) * 50
+      };
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. ベガの位置を計算し、画面内にあれば星マーカーを描く
+    // -------------------------------------------------------------------------
+    function updateVegaOverlay() {
+      if (!vegaOverlayEnabled || currentCoordinates === null || currentOrientation === null) return;
+
+      try {
+        const horizontal = calculateVegaHorizontalPosition(
+          new Date(),
+          currentCoordinates.latitude,
+          currentCoordinates.longitude
+        );
+
+        const azimuth = normalizeDegrees(horizontal.azimuth);
+        const altitude = horizontal.altitude;
+        vegaAzimuthValue.textContent = `${azimuth.toFixed(1)}°（${directionName(azimuth)}）`;
+        vegaAltitudeValue.textContent = `${altitude.toFixed(1)}°`;
+
+        // 地平線近くの星は建物・大気の影響を受けやすいので、最初は10°以下を隠します。
+        if (altitude <= 10) {
+          vegaMarker.hidden = true;
+          vegaStateValue.textContent = altitude <= 0
+            ? "地平線より下（計算上は見えません）"
+            : "低空のため非表示（10°以下）";
+          actionStatus.textContent = "ベガは現在、見やすい高さにありません。季節・時間を変えて確認してください。";
+          actionStatus.className = "";
+          return;
+        }
+
+        const screen = projectAzimuthAltitudeToScreen(azimuth, altitude);
+        if (screen === null) {
+          vegaMarker.hidden = true;
+          vegaStateValue.textContent = "地平線より上、カメラの画面外";
+          actionStatus.textContent = "ベガは空にありますが、カメラの視野外です。方位角と高度を目安に、ゆっくりスマホを動かしてください。";
+          actionStatus.className = "";
+          return;
+        }
+
+        vegaMarker.style.left = `${screen.x}%`;
+        vegaMarker.style.top = `${screen.y}%`;
+        vegaMarker.hidden = false;
+        vegaStateValue.textContent = "カメラ映像内に予測位置を表示中";
+        actionStatus.textContent = "白青色の印が、計算したベガの予測位置です。実際の星との完全な一致には、次の校正機能が必要です。";
+        actionStatus.className = "success";
+      } catch (error) {
+        console.error(error);
+        vegaMarker.hidden = true;
+        vegaStateValue.textContent = "計算エラー";
+        actionStatus.textContent = "ベガの計算を開始できませんでした。ページを開き直して、もう一度お試しください。";
+        actionStatus.className = "error";
+      }
+    }
+
+    function startVegaOverlay() {
+      if (currentCoordinates === null || currentOrientation === null) {
+        actionStatus.textContent = "先に現在地とスマホの向きを取得してください。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      vegaOverlayEnabled = true;
+      vegaButton.textContent = "ベガの予測位置を表示中";
+      updateVegaOverlay();
+
+      // 天体計算は1秒に1回で十分です。画面位置は端末姿勢の更新時にも計算されます。
+      vegaTimerId ??= window.setInterval(updateVegaOverlay, 1000);
+    }
+
+    // 利用者がボタンを押した時だけ、カメラ・位置情報・姿勢の取得を始めます。
+    cameraButton.addEventListener("click", startCamera);
+    locationButton.addEventListener("click", getCurrentLocation);
+    orientationButton.addEventListener("click", startOrientation);
+    vegaButton.addEventListener("click", startVegaOverlay);
+  </script>
+</body>
+</html>
