@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>スマホ星空 — 太陽系の惑星AR</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #06111f;
+      --panel: rgba(5, 16, 31, 0.88);
+      --text: #f6f8ff;
+      --subtext: #c6d2e9;
+      --accent: #a9d8ff;
+      --success: #a8e6c3;
+      --danger: #ffb4ab;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100svh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    }
+
+    .app { min-height: 100svh; display: grid; grid-template-rows: auto 1fr auto; }
+    header, footer { padding: 13px 18px; background: var(--panel); }
+    h1 { margin: 0; font-size: 1.04rem; }
+    header p, footer p, .controls p { margin: 5px 0 0; color: var(--subtext); font-size: 0.82rem; line-height: 1.5; }
+
+    .camera-area {
+      position: relative;
+      min-height: 50svh;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      background: #000;
+    }
+
+    video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+
+    /* 惑星の印を置く、カメラ映像の上にある透明な層です。 */
+    #planetLayer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+
+    .planet-marker {
+      --planet-color: #fff;
+      --planet-size: 13px;
+      position: absolute;
+      width: var(--planet-size);
+      height: var(--planet-size);
+      border: 1px solid rgba(255, 255, 255, 0.96);
+      border-radius: 50%;
+      background: var(--planet-color);
+      box-shadow: 0 0 7px 2px var(--planet-color), 0 0 17px 5px rgba(255, 255, 255, 0.28);
+      transform: translate(-50%, -50%);
+    }
+
+    .planet-marker::after {
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 4px);
+      padding: 2px 5px;
+      border-radius: 5px;
+      color: #071324;
+      background: rgba(255, 255, 255, 0.9);
+      content: attr(data-name);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.2;
+      white-space: nowrap;
+      transform: translateX(-50%);
+    }
+
+    /* 土星には、識別しやすい小さな輪を付けます。 */
+    .planet-marker.saturn::before {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: calc(var(--planet-size) + 10px);
+      height: calc(var(--planet-size) / 2 + 3px);
+      border: 1px solid rgba(255, 242, 204, 0.95);
+      border-radius: 50%;
+      content: "";
+      transform: translate(-50%, -50%) rotate(-22deg);
+    }
+
+    .message {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: linear-gradient(180deg, rgba(6, 17, 31, 0.45), rgba(6, 17, 31, 0.9));
+      text-align: center;
+    }
+    .message[hidden], .info-card[hidden] { display: none; }
+    .message-box { max-width: 340px; }
+    .message p { margin: 0 0 16px; color: var(--subtext); line-height: 1.7; }
+
+    .info-card {
+      position: absolute;
+      right: 9px;
+      bottom: 9px;
+      left: 9px;
+      z-index: 3;
+      padding: 11px 12px;
+      border-radius: 15px;
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+    }
+    .info-card h2 { margin: 0 0 7px; font-size: 0.87rem; }
+    dl { display: grid; grid-template-columns: 7em 1fr; gap: 3px 8px; margin: 0; font-size: 0.76rem; line-height: 1.4; }
+    dt { color: var(--subtext); }
+    dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .planet-value { color: var(--accent); font-weight: 800; }
+
+    .controls { display: grid; gap: 7px; padding: 11px 18px 8px; background: var(--panel); }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      color: #0b2237;
+      background: var(--accent);
+      font-size: 0.94rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button.secondary { color: var(--text); background: rgba(255, 255, 255, 0.12); }
+    button.active { color: #06111f; background: var(--success); }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    .error { color: var(--danger) !important; font-weight: 700; }
+    .success { color: var(--success) !important; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>スマホ星空：太陽系の惑星AR</h1>
+      <p>水星・金星・火星・木星・土星・天王星・海王星の予測位置を表示します。</p>
+    </header>
+
+    <section id="cameraArea" class="camera-area" aria-label="カメラ映像">
+      <video id="camera" autoplay playsinline muted></video>
+      <div id="planetLayer" aria-label="惑星の予測位置"></div>
+
+      <section id="infoCard" class="info-card" hidden aria-live="polite">
+        <h2>惑星の計算結果</h2>
+        <dl>
+          <dt>現在時刻</dt><dd id="timeValue">未開始</dd>
+          <dt>緯度・経度</dt><dd id="locationValue">未取得</dd>
+          <dt>スマホの方位</dt><dd id="headingValue">未取得</dd>
+          <dt>画面内の惑星</dt><dd id="visiblePlanetsValue" class="planet-value">未計算</dd>
+          <dt>表示しない理由</dt><dd id="hiddenPlanetsValue">未計算</dd>
+        </dl>
+      </section>
+
+      <div id="message" class="message">
+        <div class="message-box">
+          <p id="status">カメラ、現在地、スマホの向きを順に取得してから、惑星の予測位置を表示します。</p>
+          <button id="cameraButton" type="button">カメラを開始する</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="操作ボタン">
+      <button id="locationButton" class="secondary" type="button" disabled>現在地を取得する</button>
+      <button id="orientationButton" class="secondary" type="button" disabled>スマホの向きを取得する</button>
+      <button id="planetsButton" type="button" disabled>太陽系の惑星を表示する</button>
+      <p id="actionStatus">初めて使うときは、カメラと位置情報の使用を許可してください。位置情報は保存・送信しません。</p>
+    </section>
+
+    <footer>
+      <p>マーカーは画像認識の結果ではなく、天文計算・現在地・時刻・スマホ姿勢から求めた予測位置です。安全のため、太陽から近すぎる惑星と高度10°以下の惑星は表示しません。</p>
+    </footer>
+  </main>
+
+  <!-- 月・恒星ARで使ったものと同じ天文計算ライブラリです。 -->
+  <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+  <script>
+    // -------------------------------------------------------------------------
+    // 1. 表示する惑星の一覧
+    // body は Astronomy Engine が理解する太陽系天体名です。
+    // 色・大きさは学習用の表示であり、実際の見かけの大きさではありません。
+    // -------------------------------------------------------------------------
+    const PLANETS = [
+      { id: "mercury", nameJa: "水星", body: "Mercury", color: "#cfc6b8", markerSize: 9 },
+      { id: "venus", nameJa: "金星", body: "Venus", color: "#ffe0a3", markerSize: 16 },
+      { id: "mars", nameJa: "火星", body: "Mars", color: "#ff9b78", markerSize: 13 },
+      { id: "jupiter", nameJa: "木星", body: "Jupiter", color: "#f5dcc4", markerSize: 15 },
+      { id: "saturn", nameJa: "土星", body: "Saturn", color: "#f5e1ae", markerSize: 14, className: "saturn" },
+      { id: "uranus", nameJa: "天王星", body: "Uranus", color: "#b8f0f0", markerSize: 10 },
+      { id: "neptune", nameJa: "海王星", body: "Neptune", color: "#a3bfff", markerSize: 9 }
+    ];
+
+    // 0°と360°の境目を滑らかにつなぐための補助関数です。
+    function normalizeDegrees(value) { return (value % 360 + 360) % 360; }
+    function degreesToRadians(value) { return value * Math.PI / 180; }
+    function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+    function smoothAngle(previous, next, factor) {
+      const difference = ((next - previous + 540) % 360) - 180;
+      return normalizeDegrees(previous + difference * factor);
+    }
+    function smoothValue(previous, next, factor) { return previous + (next - previous) * factor; }
+    function directionName(degrees) {
+      const names = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
+      return names[Math.round(normalizeDegrees(degrees) / 45) % 8];
+    }
+
+    // HTMLの部品を、JavaScriptから使えるように取得します。
+    const cameraArea = document.getElementById("cameraArea");
+    const video = document.getElementById("camera");
+    const planetLayer = document.getElementById("planetLayer");
+    const message = document.getElementById("message");
+    const status = document.getElementById("status");
+    const cameraButton = document.getElementById("cameraButton");
+    const locationButton = document.getElementById("locationButton");
+    const orientationButton = document.getElementById("orientationButton");
+    const planetsButton = document.getElementById("planetsButton");
+    const infoCard = document.getElementById("infoCard");
+    const timeValue = document.getElementById("timeValue");
+    const locationValue = document.getElementById("locationValue");
+    const headingValue = document.getElementById("headingValue");
+    const visiblePlanetsValue = document.getElementById("visiblePlanetsValue");
+    const hiddenPlanetsValue = document.getElementById("hiddenPlanetsValue");
+    const actionStatus = document.getElementById("actionStatus");
+
+    let currentCoordinates = null;
+    let currentOrientation = null;
+    let planetsVisible = false;
+    let orientationListening = false;
+    let clockTimerId = null;
+    let planetTimerId = null;
+    const planetMarkers = new Map();
+
+    function updateClock() {
+      timeValue.textContent = new Date().toLocaleString("ja-JP", {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit"
+      });
+    }
+
+    async function startCamera() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        status.textContent = "このブラウザではカメラ機能を利用できません。Chromeで開いてください。";
+        status.className = "error";
+        return;
+      }
+      cameraButton.disabled = true;
+      status.textContent = "カメラの許可を待っています…";
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } }, audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+        message.hidden = true;
+        infoCard.hidden = false;
+        locationButton.disabled = false;
+        orientationButton.disabled = false;
+        updateClock();
+        clockTimerId ??= window.setInterval(updateClock, 1000);
+      } catch (error) {
+        console.error(error);
+        status.textContent = "カメラを開始できませんでした。Chromeのカメラ許可を確認してください。";
+        status.className = "error";
+        cameraButton.disabled = false;
+      }
+    }
+
+    function updatePlanetButton() {
+      planetsButton.disabled = currentCoordinates === null || currentOrientation === null;
+    }
+
+    function getCurrentLocation() {
+      if (!navigator.geolocation) {
+        actionStatus.textContent = "このブラウザでは位置情報を利用できません。";
+        actionStatus.className = "error";
+        return;
+      }
+      locationButton.disabled = true;
+      actionStatus.textContent = "位置情報の許可を待っています…";
+      actionStatus.className = "";
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          currentCoordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+          locationValue.textContent = `${currentCoordinates.latitude.toFixed(4)}°, ${currentCoordinates.longitude.toFixed(4)}°`;
+          locationButton.disabled = false;
+          locationButton.textContent = "現在地を更新する";
+          actionStatus.textContent = "現在地を取得しました。次にスマホの向きを取得してください。";
+          actionStatus.className = "success";
+          updatePlanetButton();
+        },
+        (error) => {
+          const messages = {
+            [error.PERMISSION_DENIED]: "位置情報の使用が許可されませんでした。Chromeの確認画面で「許可」を選んでください。",
+            [error.POSITION_UNAVAILABLE]: "現在地を確認できませんでした。スマホ本体の位置情報設定を確認してください。",
+            [error.TIMEOUT]: "位置情報の取得に時間がかかりました。もう一度お試しください。"
+          };
+          actionStatus.textContent = messages[error.code] || "位置情報を取得できませんでした。";
+          actionStatus.className = "error";
+          locationButton.disabled = false;
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+
+    function handleOrientation(event) {
+      if (event.alpha === null || event.beta === null || event.gamma === null) return;
+      const factor = 0.18;
+      currentOrientation = currentOrientation === null
+        ? { alpha: event.alpha, beta: event.beta, gamma: event.gamma }
+        : {
+            alpha: smoothAngle(currentOrientation.alpha, event.alpha, factor),
+            beta: smoothValue(currentOrientation.beta, event.beta, factor),
+            gamma: smoothValue(currentOrientation.gamma, event.gamma, factor)
+          };
+      const heading = normalizeDegrees(360 - currentOrientation.alpha);
+      headingValue.textContent = `${heading.toFixed(0)}°（${directionName(heading)}・目安）`;
+      updatePlanetButton();
+      if (planetsVisible) updatePlanetOverlay();
+    }
+
+    async function startOrientation() {
+      if (!("DeviceOrientationEvent" in window)) {
+        actionStatus.textContent = "このスマホまたはブラウザでは、向きの情報を利用できません。";
+        actionStatus.className = "error";
+        return;
+      }
+      try {
+        // iPhoneなど、明示的な許可が必要な場合にも対応します。
+        if (typeof DeviceOrientationEvent.requestPermission === "function") {
+          const permission = await DeviceOrientationEvent.requestPermission();
+          if (permission !== "granted") throw new Error("permission-denied");
+        }
+        if (!orientationListening) {
+          window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+          window.addEventListener("deviceorientation", handleOrientation, true);
+          orientationListening = true;
+        }
+        orientationButton.textContent = "向きを取得中";
+        actionStatus.textContent = "スマホを少し動かし、方位の数字が表示されることを確認してください。";
+        actionStatus.className = "success";
+      } catch (error) {
+        console.error(error);
+        actionStatus.textContent = "向きの情報を開始できませんでした。ブラウザとスマホのセンサー設定を確認してください。";
+        actionStatus.className = "error";
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 惑星特有の計算：現在時刻の惑星位置を、観測者から見た方位角・高度へ変換します。
+    // 恒星と違い、赤経・赤緯をデータとして固定せず、Astronomy.Equatorで毎回計算します。
+    // -------------------------------------------------------------------------
+    function calculatePlanetHorizontalPosition(planet, date, latitude, longitude) {
+      if (typeof Astronomy === "undefined") throw new Error("Astronomy Engineを読み込めませんでした。");
+      const time = new Astronomy.AstroTime(date);
+      const observer = new Astronomy.Observer(latitude, longitude, 0);
+      const equator = Astronomy.Equator(planet.body, time, observer, true, true);
+      return Astronomy.Horizon(time, observer, equator.ra, equator.dec, "normal");
+    }
+
+    function solarElongation(planet, date) {
+      const time = new Astronomy.AstroTime(date);
+      return Astronomy.AngleFromSun(planet.body, time);
+    }
+
+    // 月AR・恒星ARと同じ、方位角・高度から画面のX・Yへ変換する近似式です。
+    function rotateX(vector, angle) {
+      const [x, y, z] = vector;
+      const c = Math.cos(angle), s = Math.sin(angle);
+      return [x, y * c - z * s, y * s + z * c];
+    }
+    function rotateY(vector, angle) {
+      const [x, y, z] = vector;
+      const c = Math.cos(angle), s = Math.sin(angle);
+      return [x * c + z * s, y, -x * s + z * c];
+    }
+    function rotateZ(vector, angle) {
+      const [x, y, z] = vector;
+      const c = Math.cos(angle), s = Math.sin(angle);
+      return [x * c - y * s, x * s + y * c, z];
+    }
+
+    function projectAzimuthAltitudeToScreen(azimuthDeg, altitudeDeg) {
+      if (currentOrientation === null) return null;
+      const azimuthRad = degreesToRadians(azimuthDeg);
+      const altitudeRad = degreesToRadians(altitudeDeg);
+      const worldVector = [
+        Math.cos(altitudeRad) * Math.sin(azimuthRad),
+        Math.cos(altitudeRad) * Math.cos(azimuthRad),
+        Math.sin(altitudeRad)
+      ];
+      let deviceVector = rotateZ(worldVector, -degreesToRadians(currentOrientation.alpha));
+      deviceVector = rotateX(deviceVector, -degreesToRadians(currentOrientation.beta));
+      deviceVector = rotateY(deviceVector, -degreesToRadians(currentOrientation.gamma));
+      const forward = -deviceVector[2];
+      if (forward <= 0.01) return null;
+
+      // 最初は縦43°という近似値を使用します。実際のカメラとぴったり合わせるには校正が必要です。
+      const verticalFov = degreesToRadians(43);
+      const aspect = video.clientWidth / video.clientHeight;
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
+      const normalizedX = deviceVector[0] / forward / Math.tan(horizontalFov / 2);
+      const normalizedY = deviceVector[1] / forward / Math.tan(verticalFov / 2);
+      if (Math.abs(normalizedX) > 1.12 || Math.abs(normalizedY) > 1.12) return null;
+      return {
+        xPercent: (clamp(normalizedX, -0.96, 0.96) + 1) * 50,
+        yPercent: (1 - clamp(normalizedY, -0.96, 0.96)) * 50
+      };
+    }
+
+    function updatePlanetMarkers(visiblePlanets) {
+      const visibleIds = new Set(visiblePlanets.map(({ planet }) => planet.id));
+      for (const [id, marker] of planetMarkers) {
+        if (!visibleIds.has(id)) { marker.remove(); planetMarkers.delete(id); }
+      }
+      for (const { planet, screen } of visiblePlanets) {
+        let marker = planetMarkers.get(planet.id);
+        if (!marker) {
+          marker = document.createElement("div");
+          marker.className = "planet-marker";
+          marker.setAttribute("role", "img");
+          marker.setAttribute("aria-label", `${planet.nameJa}の予測位置`);
+          marker.setAttribute("data-name", planet.nameJa);
+          planetLayer.append(marker);
+          planetMarkers.set(planet.id, marker);
+        }
+        marker.classList.toggle("saturn", planet.className === "saturn");
+        marker.style.setProperty("--planet-color", planet.color);
+        marker.style.setProperty("--planet-size", `${planet.markerSize}px`);
+        marker.style.left = `${screen.xPercent}%`;
+        marker.style.top = `${screen.yPercent}%`;
+      }
+    }
+
+    function updatePlanetOverlay() {
+      if (!planetsVisible || currentCoordinates === null || currentOrientation === null) return;
+      try {
+        const date = new Date();
+        const visiblePlanets = [];
+        const hiddenReasons = [];
+
+        for (const planet of PLANETS) {
+          const horizontal = calculatePlanetHorizontalPosition(
+            planet, date, currentCoordinates.latitude, currentCoordinates.longitude
+          );
+          const elongation = solarElongation(planet, date);
+
+          // 太陽へ近い方向は、たとえ高度が高くても観察せず、ARマーカーも出さない安全策です。
+          if (elongation < 15) {
+            hiddenReasons.push(`${planet.nameJa}：太陽に近い`);
+            continue;
+          }
+          // 地平線近くは建物・大気の影響が大きいため、最初の版では隠します。
+          if (horizontal.altitude <= 10) {
+            hiddenReasons.push(`${planet.nameJa}：地平線近く／下`);
+            continue;
+          }
+          const screen = projectAzimuthAltitudeToScreen(normalizeDegrees(horizontal.azimuth), horizontal.altitude);
+          if (screen === null) {
+            hiddenReasons.push(`${planet.nameJa}：カメラの画面外`);
+            continue;
+          }
+          visiblePlanets.push({ planet, screen, horizontal, elongation });
+        }
+
+        updatePlanetMarkers(visiblePlanets);
+        visiblePlanetsValue.textContent = visiblePlanets.length
+          ? `${visiblePlanets.length}個：${visiblePlanets.map(({ planet }) => planet.nameJa).join("、")}`
+          : "0個";
+        hiddenPlanetsValue.textContent = hiddenReasons.length
+          ? hiddenReasons.join(" ／ ")
+          : "すべて画面内";
+        actionStatus.textContent = visiblePlanets.length
+          ? "惑星の丸印は計算上の予測位置です。画面外ならスマホをゆっくり動かしてください。"
+          : "画面内の惑星はありません。向きや時間帯を変えてください。";
+        actionStatus.className = visiblePlanets.length ? "success" : "";
+      } catch (error) {
+        console.error(error);
+        visiblePlanetsValue.textContent = "計算エラー";
+        hiddenPlanetsValue.textContent = "計算エラー";
+        actionStatus.textContent = "惑星の位置を計算できませんでした。ページを開き直してもう一度お試しください。";
+        actionStatus.className = "error";
+      }
+    }
+
+    function togglePlanets() {
+      if (!planetsVisible) {
+        planetsVisible = true;
+        planetsButton.textContent = "太陽系の惑星を隠す";
+        planetsButton.classList.add("active");
+        updatePlanetOverlay();
+        // 惑星は恒星より速く動くため、ここでは10秒ごとに再計算します。
+        planetTimerId ??= window.setInterval(updatePlanetOverlay, 10000);
+      } else {
+        planetsVisible = false;
+        planetMarkers.forEach((marker) => marker.remove());
+        planetMarkers.clear();
+        planetsButton.textContent = "太陽系の惑星を表示する";
+        planetsButton.classList.remove("active");
+        visiblePlanetsValue.textContent = "非表示";
+        hiddenPlanetsValue.textContent = "非表示";
+        actionStatus.textContent = "惑星の表示を隠しました。";
+        actionStatus.className = "";
+      }
+    }
+
+    cameraButton.addEventListener("click", startCamera);
+    locationButton.addEventListener("click", getCurrentLocation);
+    orientationButton.addEventListener("click", startOrientation);
+    planetsButton.addEventListener("click", togglePlanets);
+  </script>
+</body>
+</html>
