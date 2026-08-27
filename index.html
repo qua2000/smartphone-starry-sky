@@ -283,6 +283,21 @@
       return (degrees % 360 + 360) % 360;
     }
 
+    // 角度は0°と360°がつながっているため、近い方を通るように平均します。
+    function smoothAngle(previous, next, factor) {
+      const difference = ((next - previous + 540) % 360) - 180;
+      return normalizeDegrees(previous + difference * factor);
+    }
+
+    // beta・gammaのように端がつながっていない値には、通常の平均を使います。
+    function smoothValue(previous, next, factor) {
+      return previous + (next - previous) * factor;
+    }
+
+    function clamp(value, minimum, maximum) {
+      return Math.max(minimum, Math.min(maximum, value));
+    }
+
     function directionName(degrees) {
       const names = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
       return names[Math.round(normalizeDegrees(degrees) / 45) % 8];
@@ -298,20 +313,32 @@
         return;
       }
 
+      // センサー値には小さな揺れがあるため、前回値へ少しずつ近づけます。
+      // 0.18は「反応を大きく遅らせず、細かなちらつきを抑える」ための最初の設定です。
+      const smoothingFactor = 0.18;
+      currentOrientation = currentOrientation === null
+        ? { alpha, beta, gamma }
+        : {
+            alpha: smoothAngle(currentOrientation.alpha, alpha, smoothingFactor),
+            beta: smoothValue(currentOrientation.beta, beta, smoothingFactor),
+            gamma: smoothValue(currentOrientation.gamma, gamma, smoothingFactor)
+          };
+
+      const smoothedAlpha = currentOrientation.alpha;
+      const smoothedBeta = currentOrientation.beta;
+      const smoothedGamma = currentOrientation.gamma;
       const hasWebKitHeading = typeof event.webkitCompassHeading === "number";
       const heading = hasWebKitHeading
         ? normalizeDegrees(event.webkitCompassHeading)
-        : normalizeDegrees(360 - alpha);
+        : normalizeDegrees(360 - smoothedAlpha);
 
       headingValue.textContent = `${heading.toFixed(0)}°（${directionName(heading)}・目安）`;
-      betaValue.textContent = `${beta.toFixed(1)}°`;
-      gammaValue.textContent = `${gamma.toFixed(1)}°`;
+      betaValue.textContent = `${smoothedBeta.toFixed(1)}°`;
+      gammaValue.textContent = `${smoothedGamma.toFixed(1)}°`;
       sensorStateValue.textContent = event.absolute
-        ? "絶対方位の情報あり"
-        : "相対的な向きの情報";
+        ? "絶対方位の情報あり（なめらかに表示中）"
+        : "相対的な向きの情報（なめらかに表示中）";
 
-      // 方位・傾きを、その時点の姿勢として保存します。
-      currentOrientation = { alpha, beta, gamma };
       if (arEnabled) updateMoonOverlay();
     }
 
@@ -551,7 +578,10 @@
       const normalizedX = deviceVector[0] / forward / Math.tan(horizontalFov / 2);
       const normalizedY = deviceVector[1] / forward / Math.tan(verticalFov / 2);
 
-      if (Math.abs(normalizedX) > 1 || Math.abs(normalizedY) > 1) {
+      // すでに丸印が見えている場合は、少し画面外へ動いただけでは消さないようにします。
+      // これを「ヒステリシス」と呼び、視野境界での点滅を抑える定番の方法です。
+      const visibilityLimit = moonMarker.hidden ? 0.92 : 1.18;
+      if (Math.abs(normalizedX) > visibilityLimit || Math.abs(normalizedY) > visibilityLimit) {
         moonMarker.hidden = true;
         moonName.hidden = true;
         moonNameVisible = false;
@@ -562,8 +592,11 @@
         return;
       }
 
-      const screenLeft = `${(normalizedX + 1) * 50}%`;
-      const screenTop = `${(1 - normalizedY) * 50}%`;
+      // 少しだけ画面外になった場合は、印を端に留めて急な消失を防ぎます。
+      const stableX = clamp(normalizedX, -0.94, 0.94);
+      const stableY = clamp(normalizedY, -0.94, 0.94);
+      const screenLeft = `${(stableX + 1) * 50}%`;
+      const screenTop = `${(1 - stableY) * 50}%`;
       moonMarker.style.left = screenLeft;
       moonMarker.style.top = screenTop;
       moonName.style.left = screenLeft;
