@@ -119,6 +119,9 @@
         <option value="scorpius">さそり座</option>
         <option value="sagittarius">いて座（主要星）</option>
         <option value="ophiuchus">へびつかい座（主要星）</option>
+        <option value="lyra">こと座</option>
+        <option value="aquila">わし座（主要星）</option>
+        <option value="cygnus">はくちょう座</option>
       </select>
       <p id="actionStatus">カメラと位置情報の使用を許可してください。位置情報や映像を保存・送信する機能はありません。</p>
     </section>
@@ -168,7 +171,22 @@
       { id:"cebalrai", nameJa:"ケバルライ", nameEn:"Cebalrai", ra:17.72454, dec:4.56730, color:"#ffd9a8", size:12 },
       { id:"yedPrior", nameJa:"イェド・プリオル", nameEn:"Yed Prior", ra:16.23909, dec:-3.69433, color:"#ffcf9f", size:11 },
       { id:"yedPosterior", nameJa:"イェド・ポステリオル", nameEn:"Yed Posterior", ra:16.30556, dec:-4.69333, color:"#ffcf9f", size:11 },
-      { id:"sabik", nameJa:"サビク", nameEn:"Sabik", ra:17.17287, dec:-15.72491, color:"#d9e8ff", size:11 }
+      { id:"sabik", nameJa:"サビク", nameEn:"Sabik", ra:17.17287, dec:-15.72491, color:"#d9e8ff", size:11 },
+
+      // 夏の大三角周辺：ベガ（こと座）、アルタイル（わし座）、デネブ（はくちょう座）は既に登録済みです。
+      // わし座
+      { id:"tarazed", nameJa:"タラゼド", nameEn:"Tarazed", ra:19.77099, dec:10.61326, color:"#ffd2a6", size:12 },
+      { id:"alshain", nameJa:"アルシャイン", nameEn:"Alshain", ra:19.92188, dec:6.40676, color:"#ffd9af", size:10 },
+
+      // こと座
+      { id:"sheliak", nameJa:"シェリアク", nameEn:"Sheliak", ra:18.83467, dec:33.36267, color:"#bfd5ff", size:10 },
+      { id:"sulafat", nameJa:"スラファト", nameEn:"Sulafat", ra:18.98239, dec:32.68956, color:"#c9ddff", size:10 },
+
+      // はくちょう座
+      { id:"sadr", nameJa:"サドル", nameEn:"Sadr", ra:20.37047, dec:40.25668, color:"#fff0c8", size:12 },
+      { id:"albireo", nameJa:"アルビレオ", nameEn:"Albireo", ra:19.51202, dec:27.95967, color:"#ffc789", size:10 },
+      { id:"gienahCyg", nameJa:"ギェナー", nameEn:"Gienah Cygni", ra:20.77018, dec:33.97025, color:"#d3e3ff", size:10 },
+      { id:"deltaCyg", nameJa:"デルタ・はくちょう座", nameEn:"Delta Cygni", ra:19.74957, dec:45.13081, color:"#d5e6ff", size:10 }
     ];
     const PATTERNS = {
       summer: { name:"夏の大三角", ids:["vega","altair","deneb"], edges:[["vega","altair"],["altair","deneb"],["deneb","vega"]] },
@@ -178,7 +196,10 @@
       // 星座線はIAUの公式定義ではなく、学習用に分かりやすく選んだ線です。
       scorpius: { name:"さそり座", ids:["dschubba","acrab","antares","sargas","shaula","lesath"], edges:[["dschubba","acrab"],["acrab","antares"],["antares","sargas"],["sargas","shaula"],["shaula","lesath"]] },
       sagittarius: { name:"いて座（主要星）", ids:["kausBorealis","kausMedia","kausAustralis","nunki","ascella"], edges:[["kausBorealis","kausMedia"],["kausMedia","kausAustralis"],["kausMedia","nunki"],["nunki","ascella"],["ascella","kausAustralis"]] },
-      ophiuchus: { name:"へびつかい座（主要星）", ids:["rasalhague","cebalrai","yedPrior","yedPosterior","sabik"], edges:[["rasalhague","cebalrai"],["cebalrai","yedPosterior"],["yedPosterior","yedPrior"],["yedPrior","sabik"],["sabik","rasalhague"]] }
+      ophiuchus: { name:"へびつかい座（主要星）", ids:["rasalhague","cebalrai","yedPrior","yedPosterior","sabik"], edges:[["rasalhague","cebalrai"],["cebalrai","yedPosterior"],["yedPosterior","yedPrior"],["yedPrior","sabik"],["sabik","rasalhague"]] },
+      lyra: { name:"こと座", ids:["vega","sheliak","sulafat"], edges:[["vega","sheliak"],["sheliak","sulafat"],["sulafat","vega"]] },
+      aquila: { name:"わし座（主要星）", ids:["tarazed","altair","alshain"], edges:[["tarazed","altair"],["altair","alshain"]] },
+      cygnus: { name:"はくちょう座", ids:["deneb","sadr","albireo","gienahCyg","deltaCyg"], edges:[["deneb","sadr"],["sadr","albireo"],["sadr","gienahCyg"],["sadr","deltaCyg"]] }
     };
     const PLANETS = [
       { id:"mercury", nameJa:"水星", body:"Mercury", color:"#cfc6b8", size:9 },
