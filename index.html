@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>スマホ星空 — カメラ確認</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07111f;
+      --panel: rgba(7, 17, 31, 0.84);
+      --text: #f6f8ff;
+      --subtext: #bac8df;
+      --accent: #ffc768;
+      --danger: #ffb4ab;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100svh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    }
+
+    .app {
+      min-height: 100svh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    header, footer {
+      padding: 16px 20px;
+      background: var(--panel);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    header p, footer p {
+      margin: 6px 0 0;
+      color: var(--subtext);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .camera-area {
+      position: relative;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: #000;
+      min-height: 44svh;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+
+    .message {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(7, 17, 31, 0.5), rgba(7, 17, 31, 0.86));
+    }
+
+    .message[hidden] { display: none; }
+
+    .message-box {
+      max-width: 340px;
+    }
+
+    .message p {
+      margin: 0 0 16px;
+      color: var(--subtext);
+      line-height: 1.7;
+    }
+
+    button {
+      width: min(100%, 340px);
+      border: 0;
+      border-radius: 999px;
+      padding: 15px 20px;
+      color: #201600;
+      background: var(--accent);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+
+    .error {
+      color: var(--danger) !important;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>スマホ星空：① カメラ表示の確認</h1>
+      <p>この段階では、まだ位置情報・星・月は表示しません。</p>
+    </header>
+
+    <section class="camera-area" aria-label="カメラ映像">
+      <!-- playsinline は、iPhoneで全画面動画になりにくくするための指定です。 -->
+      <video id="camera" autoplay playsinline muted></video>
+
+      <div id="message" class="message">
+        <div class="message-box">
+          <p id="status">下のボタンを押すと、スマホの後ろ向きカメラを表示します。</p>
+          <button id="startButton" type="button">カメラを開始する</button>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>カメラの使用許可が表示されたら、「許可」を選んでください。映像の保存・送信は行いません。</p>
+    </footer>
+  </main>
+
+  <script>
+    // HTML上の部品を、JavaScriptから操作できるように取得します。
+    const video = document.getElementById("camera");
+    const message = document.getElementById("message");
+    const status = document.getElementById("status");
+    const startButton = document.getElementById("startButton");
+
+    async function startCamera() {
+      // カメラを使えるブラウザか、最初に確認します。
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        status.textContent = "このブラウザではカメラ機能を利用できません。Safari または Chrome で開いてください。";
+        status.className = "error";
+        startButton.hidden = true;
+        return;
+      }
+
+      startButton.disabled = true;
+      status.textContent = "カメラの許可を待っています…";
+      status.className = "";
+
+      try {
+        // environment は「後ろ向きカメラ」を優先する指定です。
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+
+        // 取得したライブ映像を video タグへ渡して再生します。
+        video.srcObject = stream;
+        await video.play();
+        message.hidden = true;
+      } catch (error) {
+        // 許可しなかった場合や、カメラが使えない場合の表示です。
+        console.error(error);
+        status.textContent = "カメラを開始できませんでした。ブラウザのカメラ許可を確認し、もう一度お試しください。";
+        status.className = "error";
+        startButton.disabled = false;
+        startButton.textContent = "もう一度試す";
+      }
+    }
+
+    // 利用者がボタンを押したときだけ、カメラへのアクセスを開始します。
+    startButton.addEventListener("click", startCamera);
+  </script>
+</body>
+</html>
