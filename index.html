@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>スマホ星空 — 位置と時刻の確認</title>
+  <title>スマホ星空 — 向きの確認</title>
   <style>
     :root {
       color-scheme: dark;
       --bg: #07111f;
-      --panel: rgba(7, 17, 31, 0.86);
+      --panel: rgba(7, 17, 31, 0.87);
       --text: #f6f8ff;
       --subtext: #bac8df;
       --accent: #ffc768;
@@ -33,19 +33,16 @@
     }
 
     header, footer {
-      padding: 14px 20px;
+      padding: 13px 20px;
       background: var(--panel);
     }
 
-    h1 {
-      margin: 0;
-      font-size: 1.05rem;
-    }
+    h1 { margin: 0; font-size: 1.03rem; }
 
-    header p, footer p {
+    header p, footer p, .controls p {
       margin: 5px 0 0;
       color: var(--subtext);
-      font-size: 0.85rem;
+      font-size: 0.84rem;
       line-height: 1.5;
     }
 
@@ -75,41 +72,30 @@
       background: linear-gradient(180deg, rgba(7, 17, 31, 0.48), rgba(7, 17, 31, 0.88));
     }
 
-    .message[hidden] { display: none; }
-
+    .message[hidden], .info-card[hidden] { display: none; }
     .message-box { max-width: 340px; }
-
-    .message p {
-      margin: 0 0 16px;
-      color: var(--subtext);
-      line-height: 1.7;
-    }
+    .message p { margin: 0 0 16px; color: var(--subtext); line-height: 1.7; }
 
     .info-card {
       position: absolute;
-      right: 12px;
-      bottom: 12px;
-      left: 12px;
-      padding: 14px;
+      right: 10px;
+      bottom: 10px;
+      left: 10px;
+      padding: 13px;
       border-radius: 16px;
       background: var(--panel);
       backdrop-filter: blur(10px);
     }
 
-    .info-card[hidden] { display: none; }
-
-    .info-card h2 {
-      margin: 0 0 8px;
-      font-size: 0.9rem;
-    }
+    .info-card h2 { margin: 0 0 8px; font-size: 0.88rem; }
 
     dl {
       display: grid;
-      grid-template-columns: 5.5em 1fr;
-      gap: 6px 10px;
+      grid-template-columns: 6.2em 1fr;
+      gap: 5px 9px;
       margin: 0;
-      font-size: 0.86rem;
-      line-height: 1.45;
+      font-size: 0.81rem;
+      line-height: 1.4;
     }
 
     dt { color: var(--subtext); }
@@ -117,8 +103,8 @@
 
     .controls {
       display: grid;
-      gap: 10px;
-      padding: 14px 20px 10px;
+      gap: 8px;
+      padding: 12px 20px 9px;
       background: var(--panel);
     }
 
@@ -126,33 +112,25 @@
       width: 100%;
       border: 0;
       border-radius: 999px;
-      padding: 14px 18px;
+      padding: 13px 18px;
       color: #201600;
       background: var(--accent);
-      font-size: 1rem;
+      font-size: 0.96rem;
       font-weight: 700;
       cursor: pointer;
     }
 
-    button.secondary {
-      color: var(--text);
-      background: rgba(255, 255, 255, 0.12);
-    }
-
-    button:disabled {
-      opacity: 0.65;
-      cursor: wait;
-    }
-
+    button.secondary { color: var(--text); background: rgba(255, 255, 255, 0.12); }
+    button:disabled { opacity: 0.62; cursor: wait; }
     .error { color: var(--danger) !important; font-weight: 600; }
-    .success { color: var(--success); }
+    .success { color: var(--success) !important; }
   </style>
 </head>
 <body>
   <main class="app">
     <header>
-      <h1>スマホ星空：② 位置と時刻の確認</h1>
-      <p>カメラ映像の上に、現在時刻と現在地を文字で表示します。</p>
+      <h1>スマホ星空：③ 向きの確認</h1>
+      <p>現在時刻・現在地に加え、スマホの方位角と傾きを文字で表示します。</p>
     </header>
 
     <section class="camera-area" aria-label="カメラ映像">
@@ -169,12 +147,20 @@
           <dd id="longitudeValue">未取得</dd>
           <dt>位置の精度</dt>
           <dd id="accuracyValue">未取得</dd>
+          <dt>方位角の目安</dt>
+          <dd id="headingValue">未取得</dd>
+          <dt>前後の傾き</dt>
+          <dd id="betaValue">未取得</dd>
+          <dt>左右の傾き</dt>
+          <dd id="gammaValue">未取得</dd>
+          <dt>センサー状態</dt>
+          <dd id="sensorStateValue">未開始</dd>
         </dl>
       </section>
 
       <div id="message" class="message">
         <div class="message-box">
-          <p id="status">まずカメラを開始します。位置情報は、その後に別のボタンで取得します。</p>
+          <p id="status">まずカメラを開始します。その後、現在地とスマホの向きを別々に確認できます。</p>
           <button id="startButton" type="button">カメラを開始する</button>
         </div>
       </div>
@@ -182,11 +168,12 @@
 
     <section class="controls" aria-label="操作ボタン">
       <button id="locationButton" class="secondary" type="button" disabled>現在地を取得する</button>
-      <p id="locationStatus">位置情報は、月や星がどこに見えるかを後で計算するために使います。保存・送信はしません。</p>
+      <button id="orientationButton" class="secondary" type="button" disabled>スマホの向きを取得する</button>
+      <p id="actionStatus">位置情報は月や星がどこに見えるかを計算するため、向きはカメラのどの方向に月を描くかを決めるために使います。いずれも保存・送信しません。</p>
     </section>
 
     <footer>
-      <p>この段階では、位置と時刻を画面へ表示するだけです。方位・月・星はまだ表示しません。</p>
+      <p>この段階では数値の確認だけを行います。表示した方位角は、次の段階で月を画面に置くための出発点です。</p>
     </footer>
   </main>
 
@@ -197,17 +184,24 @@
     const status = document.getElementById("status");
     const startButton = document.getElementById("startButton");
     const locationButton = document.getElementById("locationButton");
-    const locationStatus = document.getElementById("locationStatus");
+    const orientationButton = document.getElementById("orientationButton");
+    const actionStatus = document.getElementById("actionStatus");
     const infoCard = document.getElementById("infoCard");
     const timeValue = document.getElementById("timeValue");
     const latitudeValue = document.getElementById("latitudeValue");
     const longitudeValue = document.getElementById("longitudeValue");
     const accuracyValue = document.getElementById("accuracyValue");
+    const headingValue = document.getElementById("headingValue");
+    const betaValue = document.getElementById("betaValue");
+    const gammaValue = document.getElementById("gammaValue");
+    const sensorStateValue = document.getElementById("sensorStateValue");
+
+    let clockTimerId = null;
+    let orientationListening = false;
 
     // 現在時刻を、日本で読みやすい形にして画面へ表示します。
     function updateClock() {
-      const now = new Date();
-      timeValue.textContent = now.toLocaleString("ja-JP", {
+      timeValue.textContent = new Date().toLocaleString("ja-JP", {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
@@ -217,8 +211,47 @@
       });
     }
 
+    // 360度を超えたり、マイナスになったりしないように角度を整えます。
+    function normalizeDegrees(degrees) {
+      return (degrees % 360 + 360) % 360;
+    }
+
+    // 例：0度なら北、90度なら東という、日本語の方角に直します。
+    function directionName(degrees) {
+      const names = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
+      return names[Math.round(normalizeDegrees(degrees) / 45) % 8];
+    }
+
+    // センサーの値が届くたびに呼ばれ、最新の値を画面へ表示します。
+    function handleOrientation(event) {
+      const alpha = event.alpha;
+      const beta = event.beta;
+      const gamma = event.gamma;
+
+      if (alpha === null || beta === null || gamma === null) {
+        sensorStateValue.textContent = "値を取得できません";
+        return;
+      }
+
+      // iPhone系では webkitCompassHeading があれば優先します。
+      // それ以外では、仕様上の alpha を反転して簡易的な方位角の目安を表示します。
+      const hasWebKitHeading = typeof event.webkitCompassHeading === "number";
+      const heading = hasWebKitHeading
+        ? normalizeDegrees(event.webkitCompassHeading)
+        : normalizeDegrees(360 - alpha);
+
+      headingValue.textContent = `${heading.toFixed(0)}°（${directionName(heading)}・目安）`;
+      betaValue.textContent = `${beta.toFixed(1)}°`;
+      gammaValue.textContent = `${gamma.toFixed(1)}°`;
+      sensorStateValue.textContent = event.absolute
+        ? "絶対方位の情報あり"
+        : "相対的な向きの情報";
+
+      actionStatus.textContent = "向きの値を取得しています。スマホをゆっくり北・東・南・西へ向けたり、前後・左右に傾けたりして数値が変わるか確認してください。";
+      actionStatus.className = "success";
+    }
+
     async function startCamera() {
-      // カメラを使えるブラウザか、最初に確認します。
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         status.textContent = "このブラウザではカメラ機能を利用できません。Chromeで開いてください。";
         status.className = "error";
@@ -231,7 +264,6 @@
       status.className = "";
 
       try {
-        // environment は「後ろ向きカメラ」を優先する指定です。
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: "environment" } },
           audio: false
@@ -242,9 +274,11 @@
         message.hidden = true;
         infoCard.hidden = false;
         locationButton.disabled = false;
+        orientationButton.disabled = false;
         updateClock();
-        // 1秒ごとに時刻を書き換えます。位置情報は自動取得しません。
-        window.setInterval(updateClock, 1000);
+        if (clockTimerId === null) {
+          clockTimerId = window.setInterval(updateClock, 1000);
+        }
       } catch (error) {
         console.error(error);
         status.textContent = "カメラを開始できませんでした。ブラウザのカメラ許可を確認し、もう一度お試しください。";
@@ -255,59 +289,90 @@
     }
 
     function showLocationError(error) {
-      let explanation = "位置情報を取得できませんでした。";
+      const messages = {
+        [error.PERMISSION_DENIED]: "位置情報の使用が許可されませんでした。Chromeの確認画面で「許可」を選んでください。",
+        [error.POSITION_UNAVAILABLE]: "現在地を確認できませんでした。スマホの位置情報設定を確認してください。",
+        [error.TIMEOUT]: "位置情報の取得に時間がかかりました。見通しのよい場所で、もう一度お試しください。"
+      };
 
-      if (error.code === error.PERMISSION_DENIED) {
-        explanation = "位置情報の使用が許可されませんでした。Chromeの確認画面で「許可」を選んでください。";
-      } else if (error.code === error.POSITION_UNAVAILABLE) {
-        explanation = "現在地を確認できませんでした。スマホの位置情報設定を確認してください。";
-      } else if (error.code === error.TIMEOUT) {
-        explanation = "位置情報の取得に時間がかかりました。見通しのよい場所で、もう一度お試しください。";
-      }
-
-      locationStatus.textContent = explanation;
-      locationStatus.className = "error";
+      actionStatus.textContent = messages[error.code] || "位置情報を取得できませんでした。";
+      actionStatus.className = "error";
       locationButton.disabled = false;
       locationButton.textContent = "もう一度、現在地を取得する";
     }
 
     function getCurrentLocation() {
-      // 位置情報を使えるか確認します。
       if (!navigator.geolocation) {
-        locationStatus.textContent = "このブラウザでは位置情報を利用できません。";
-        locationStatus.className = "error";
+        actionStatus.textContent = "このブラウザでは位置情報を利用できません。";
+        actionStatus.className = "error";
         return;
       }
 
       locationButton.disabled = true;
       locationButton.textContent = "現在地を取得中…";
-      locationStatus.textContent = "位置情報の許可を待っています…";
-      locationStatus.className = "";
+      actionStatus.textContent = "位置情報の許可を待っています…";
+      actionStatus.className = "";
 
-      // ボタンを押したときだけ、一度だけ現在地を取得します。
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;
           latitudeValue.textContent = `${latitude.toFixed(5)}°`;
           longitudeValue.textContent = `${longitude.toFixed(5)}°`;
           accuracyValue.textContent = `およそ ${Math.round(accuracy)} m`;
-          locationStatus.textContent = "現在地を取得しました。この情報はこの画面での表示と、今後の月の計算にだけ使います。";
-          locationStatus.className = "success";
+          actionStatus.textContent = "現在地を取得しました。現在地はこの画面の表示と、今後の月の計算にだけ使います。";
+          actionStatus.className = "success";
           locationButton.disabled = false;
           locationButton.textContent = "現在地を更新する";
         },
         showLocationError,
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0
-        }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     }
 
-    // 利用者がボタンを押したときだけ、カメラ・位置情報へのアクセスを始めます。
+    async function startOrientation() {
+      if (!("DeviceOrientationEvent" in window)) {
+        actionStatus.textContent = "このスマホまたはブラウザでは、向きの情報を利用できません。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      orientationButton.disabled = true;
+      orientationButton.textContent = "向きを開始中…";
+      actionStatus.textContent = "向きの情報の許可を待っています…";
+      actionStatus.className = "";
+
+      try {
+        // iPhone系など、明示的な許可が必要なブラウザだけで許可を求めます。
+        if (typeof DeviceOrientationEvent.requestPermission === "function") {
+          const permission = await DeviceOrientationEvent.requestPermission(true);
+          if (permission !== "granted") {
+            throw new Error("permission-denied");
+          }
+        }
+
+        if (!orientationListening) {
+          // より絶対的な方位データを優先し、使えない機種では通常のイベントを使います。
+          window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+          window.addEventListener("deviceorientation", handleOrientation, true);
+          orientationListening = true;
+        }
+
+        sensorStateValue.textContent = "センサーの値を待っています…";
+        orientationButton.textContent = "向きの取得中";
+      } catch (error) {
+        console.error(error);
+        actionStatus.textContent = "向きの情報を開始できませんでした。Chromeの権限設定や、スマホのセンサー設定を確認してください。";
+        actionStatus.className = "error";
+        sensorStateValue.textContent = "利用できません";
+        orientationButton.disabled = false;
+        orientationButton.textContent = "もう一度、向きを取得する";
+      }
+    }
+
+    // 利用者がボタンを押したときだけ、カメラ・位置・向きへのアクセスを始めます。
     startButton.addEventListener("click", startCamera);
     locationButton.addEventListener("click", getCurrentLocation);
+    orientationButton.addEventListener("click", startOrientation);
   </script>
 </body>
 </html>
