@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>スマホ星空 — 月の位置の確認</title>
+  <title>スマホ星空 — 月の予測位置</title>
   <style>
     :root {
       color-scheme: dark;
@@ -61,6 +61,32 @@
       object-fit: cover;
       background: #000;
     }
+
+    /* 月の予測位置を示す、カメラ映像の上の透明な表示層です。 */
+    .moon-marker {
+      position: absolute;
+      z-index: 1;
+      width: 54px;
+      height: 54px;
+      border: 3px solid var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 0 6px rgba(255, 199, 104, 0.16), 0 0 18px rgba(255, 199, 104, 0.9);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    }
+
+    .moon-marker::before,
+    .moon-marker::after {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      content: "";
+      background: var(--accent);
+      transform: translate(-50%, -50%);
+    }
+
+    .moon-marker::before { width: 7px; height: 7px; border-radius: 50%; }
+    .moon-marker::after { width: 76px; height: 1px; opacity: 0.65; }
 
     .message {
       position: absolute;
@@ -130,12 +156,14 @@
 <body>
   <main class="app">
     <header>
-      <h1>スマホ星空：④ 月の位置の確認</h1>
-      <p>現在地と時刻から、月の方位角と高度を計算して表示します。</p>
+      <h1>スマホ星空：⑤ 月の予測位置</h1>
+      <p>月の方位角・高度とスマホの向きから、カメラ映像の上に予測位置を重ねます。</p>
     </header>
 
     <section class="camera-area" aria-label="カメラ映像">
       <video id="camera" autoplay playsinline muted></video>
+      <!-- この丸印は「月の予測位置」です。名称は次の⑥で追加します。 -->
+      <div id="moonMarker" class="moon-marker" hidden aria-label="月の予測位置"></div>
 
       <section id="infoCard" class="info-card" hidden aria-live="polite">
         <h2>いま取得・計算している情報</h2>
@@ -177,11 +205,12 @@
       <button id="locationButton" class="secondary" type="button" disabled>現在地を取得する</button>
       <button id="orientationButton" class="secondary" type="button" disabled>スマホの向きを取得する</button>
       <button id="moonButton" type="button" disabled>月の位置を計算する</button>
+      <button id="arButton" type="button" disabled>月の予測位置を重ねる</button>
       <p id="actionStatus">月の位置の計算には、まず現在地が必要です。位置情報は保存・送信しません。</p>
     </section>
 
     <footer>
-      <p>高度が0°より大きければ月は地平線より上、0°より小さければ地平線より下です。この段階では、まだ月の印は描きません。</p>
+      <p>月が地平線より上にあり、スマホが月の方向を向くと、琥珀色の丸印が予測位置に表示されます。丸印は目安で、端末ごとにずれが出る場合があります。</p>
     </footer>
   </main>
 
@@ -196,6 +225,8 @@
     const locationButton = document.getElementById("locationButton");
     const orientationButton = document.getElementById("orientationButton");
     const moonButton = document.getElementById("moonButton");
+    const arButton = document.getElementById("arButton");
+    const moonMarker = document.getElementById("moonMarker");
     const actionStatus = document.getElementById("actionStatus");
     const infoCard = document.getElementById("infoCard");
     const timeValue = document.getElementById("timeValue");
@@ -214,6 +245,9 @@
     let moonTimerId = null;
     let orientationListening = false;
     let currentCoordinates = null;
+    let currentOrientation = null;
+    let currentMoonPosition = null;
+    let arEnabled = false;
 
     function updateClock() {
       timeValue.textContent = new Date().toLocaleString("ja-JP", {
@@ -257,6 +291,10 @@
       sensorStateValue.textContent = event.absolute
         ? "絶対方位の情報あり"
         : "相対的な向きの情報";
+
+      // 方位・傾きを、その時点の姿勢として保存します。
+      currentOrientation = { alpha, beta, gamma };
+      if (arEnabled) updateMoonOverlay();
     }
 
     async function startCamera() {
@@ -406,8 +444,98 @@
       moonVisibilityValue.textContent = altitude > 0
         ? "地平線より上（計算上は空にあります）"
         : "地平線より下（計算上は見えません）";
+      currentMoonPosition = { azimuth, altitude };
+      arButton.disabled = currentOrientation === null;
 
-      actionStatus.textContent = "月の位置を計算しています。時刻が進むため、方位角と高度はゆっくり変化します。";
+      if (arEnabled) {
+        updateMoonOverlay();
+      } else {
+        actionStatus.textContent = "月の位置を計算しました。次にスマホの向きを取得し、「月の予測位置を重ねる」を押してください。";
+        actionStatus.className = "success";
+      }
+    }
+
+    // 地平線上の方位角・高度を、地球を基準とする3次元ベクトルへ変換します。
+    // x: 東、y: 北、z: 上という座標の約束です。
+    function rotateX(vector, angle) {
+      const [x, y, z] = vector;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      return [x, y * cosine - z * sine, y * sine + z * cosine];
+    }
+
+    function rotateY(vector, angle) {
+      const [x, y, z] = vector;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      return [x * cosine + z * sine, y, -x * sine + z * cosine];
+    }
+
+    function rotateZ(vector, angle) {
+      const [x, y, z] = vector;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      return [x * cosine - y * sine, x * sine + y * cosine, z];
+    }
+
+    function degreesToRadians(degrees) {
+      return degrees * Math.PI / 180;
+    }
+
+    // 月の位置を、カメラ映像内のピクセル位置へ変換して丸印を置きます。
+    function updateMoonOverlay() {
+      if (!arEnabled || currentMoonPosition === null || currentOrientation === null) return;
+
+      const { azimuth, altitude } = currentMoonPosition;
+      if (altitude <= 0) {
+        moonMarker.hidden = true;
+        actionStatus.textContent = "月は現在、地平線より下にあります。そのため丸印は表示しません。高度が0°より大きい時間にもう一度お試しください。";
+        actionStatus.className = "";
+        return;
+      }
+
+      const azimuthRad = degreesToRadians(azimuth);
+      const altitudeRad = degreesToRadians(altitude);
+      const worldVector = [
+        Math.cos(altitudeRad) * Math.sin(azimuthRad),
+        Math.cos(altitudeRad) * Math.cos(azimuthRad),
+        Math.sin(altitudeRad)
+      ];
+
+      // DeviceOrientationのalpha・beta・gammaの逆回転を行い、月をスマホ座標へ移します。
+      const { alpha, beta, gamma } = currentOrientation;
+      let deviceVector = rotateZ(worldVector, -degreesToRadians(alpha));
+      deviceVector = rotateX(deviceVector, -degreesToRadians(beta));
+      deviceVector = rotateY(deviceVector, -degreesToRadians(gamma));
+
+      // 背面カメラは、画面から奥側（スマホ座標の-z方向）を見ます。
+      const forward = -deviceVector[2];
+      if (forward <= 0.01) {
+        moonMarker.hidden = true;
+        actionStatus.textContent = "月は地平線より上ですが、現在のカメラの後ろ側にあります。スマホを月の方位角に近い方向へ向けてください。";
+        actionStatus.className = "";
+        return;
+      }
+
+      // 多くのスマホの背面カメラを想定し、縦の視野角を43°とした最初の近似です。
+      // 実用版では端末ごとに補正し、ここをさらに正確にします。
+      const verticalFov = degreesToRadians(43);
+      const aspectRatio = video.clientWidth / video.clientHeight;
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspectRatio);
+      const normalizedX = deviceVector[0] / forward / Math.tan(horizontalFov / 2);
+      const normalizedY = deviceVector[1] / forward / Math.tan(verticalFov / 2);
+
+      if (Math.abs(normalizedX) > 1 || Math.abs(normalizedY) > 1) {
+        moonMarker.hidden = true;
+        actionStatus.textContent = "月は地平線より上ですが、現在はカメラの画面外にあります。月の方位角・高度を参考に、ゆっくりスマホを動かしてください。";
+        actionStatus.className = "";
+        return;
+      }
+
+      moonMarker.style.left = `${(normalizedX + 1) * 50}%`;
+      moonMarker.style.top = `${(1 - normalizedY) * 50}%`;
+      moonMarker.hidden = false;
+      actionStatus.textContent = "琥珀色の丸印が、計算した月の予測位置です。実際の月とのずれは、次の段階以降で補正できるようにします。";
       actionStatus.className = "success";
     }
 
@@ -420,10 +548,28 @@
       moonButton.textContent = "月の位置を更新中";
     }
 
+    function startMoonOverlay() {
+      if (currentMoonPosition === null) {
+        actionStatus.textContent = "先に「月の位置を計算する」を押してください。";
+        actionStatus.className = "error";
+        return;
+      }
+      if (currentOrientation === null) {
+        actionStatus.textContent = "先に「スマホの向きを取得する」を押し、数値が表示されることを確認してください。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      arEnabled = true;
+      arButton.textContent = "月の予測位置を表示中";
+      updateMoonOverlay();
+    }
+
     startButton.addEventListener("click", startCamera);
     locationButton.addEventListener("click", getCurrentLocation);
     orientationButton.addEventListener("click", startOrientation);
     moonButton.addEventListener("click", startMoonCalculation);
+    arButton.addEventListener("click", startMoonOverlay);
   </script>
 </body>
 </html>
