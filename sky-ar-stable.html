@@ -116,6 +116,9 @@
         <option value="orionBelt">オリオンの三つ星</option>
         <option value="orion">オリオン座</option>
         <option value="winter">冬の大三角</option>
+        <option value="scorpius">さそり座</option>
+        <option value="sagittarius">いて座（主要星）</option>
+        <option value="ophiuchus">へびつかい座（主要星）</option>
       </select>
       <p id="actionStatus">カメラと位置情報の使用を許可してください。位置情報や映像を保存・送信する機能はありません。</p>
     </section>
@@ -143,13 +146,39 @@
       { id:"mintaka", nameJa:"ミンタカ", nameEn:"Mintaka", ra:5.533444469444, dec:-0.299095111110, color:"#d8e7ff", size:9 },
       { id:"rigel", nameJa:"リゲル", nameEn:"Rigel", ra:5.242297805555, dec:-8.201638361111, color:"#d6eaff", size:15 },
       { id:"saiph", nameJa:"サイフ", nameEn:"Saiph", ra:5.795941344555, dec:-9.669604918610, color:"#d8e7ff", size:10 },
-      { id:"procyon", nameJa:"プロキオン", nameEn:"Procyon", ra:7.655033194444, dec:5.224987555554, color:"#fff2c9", size:14 }
+      { id:"procyon", nameJa:"プロキオン", nameEn:"Procyon", ra:7.655033194444, dec:5.224987555554, color:"#fff2c9", size:14 },
+
+      // さそり座：日本では夏の南の低い空に見えやすい主要星です。
+      { id:"dschubba", nameJa:"ジュバ", nameEn:"Dschubba", ra:16.00552, dec:-22.6218, color:"#dbeaff", size:11 },
+      { id:"acrab", nameJa:"アクラブ", nameEn:"Acrab", ra:16.09068, dec:-19.80545, color:"#dbeaff", size:11 },
+      { id:"antares", nameJa:"アンタレス", nameEn:"Antares", ra:16.49013, dec:-26.431999, color:"#ff6d59", size:18 },
+      { id:"sargas", nameJa:"サルガス", nameEn:"Sargas", ra:17.62198, dec:-42.99782, color:"#e7f0ff", size:11 },
+      { id:"shaula", nameJa:"シャウラ", nameEn:"Shaula", ra:17.56014, dec:-37.10382, color:"#c8dcff", size:13 },
+      { id:"lesath", nameJa:"レサト", nameEn:"Lesath", ra:17.51250, dec:-37.29583, color:"#d1e1ff", size:10 },
+
+      // いて座：南の空の「ティーポット」として知られる並びの主要星です。
+      { id:"kausBorealis", nameJa:"カウス・ボレアリス", nameEn:"Kaus Borealis", ra:18.46610, dec:-25.42170, color:"#dbeaff", size:10 },
+      { id:"kausMedia", nameJa:"カウス・メディア", nameEn:"Kaus Media", ra:18.34978, dec:-29.82810, color:"#dbeaff", size:11 },
+      { id:"kausAustralis", nameJa:"カウス・アウストラリス", nameEn:"Kaus Australis", ra:18.40287, dec:-34.38462, color:"#dbeaff", size:14 },
+      { id:"nunki", nameJa:"ヌンキ", nameEn:"Nunki", ra:18.92109, dec:-26.29672, color:"#c9ddff", size:12 },
+      { id:"ascella", nameJa:"アスケラ", nameEn:"Ascella", ra:19.04362, dec:-29.88028, color:"#d9e8ff", size:11 },
+
+      // へびつかい座：黄道12星座には含まれませんが、黄道の近くにある星座です。
+      { id:"rasalhague", nameJa:"ラス・アルハゲ", nameEn:"Rasalhague", ra:17.58224, dec:12.56004, color:"#e4efff", size:14 },
+      { id:"cebalrai", nameJa:"ケバルライ", nameEn:"Cebalrai", ra:17.72454, dec:4.56730, color:"#ffd9a8", size:12 },
+      { id:"yedPrior", nameJa:"イェド・プリオル", nameEn:"Yed Prior", ra:16.23909, dec:-3.69433, color:"#ffcf9f", size:11 },
+      { id:"yedPosterior", nameJa:"イェド・ポステリオル", nameEn:"Yed Posterior", ra:16.30556, dec:-4.69333, color:"#ffcf9f", size:11 },
+      { id:"sabik", nameJa:"サビク", nameEn:"Sabik", ra:17.17287, dec:-15.72491, color:"#d9e8ff", size:11 }
     ];
     const PATTERNS = {
       summer: { name:"夏の大三角", ids:["vega","altair","deneb"], edges:[["vega","altair"],["altair","deneb"],["deneb","vega"]] },
       orionBelt: { name:"オリオンの三つ星", ids:["alnitak","alnilam","mintaka"], edges:[["alnitak","alnilam"],["alnilam","mintaka"]] },
       orion: { name:"オリオン座", ids:["betelgeuse","bellatrix","alnitak","alnilam","mintaka","rigel","saiph"], edges:[["betelgeuse","bellatrix"],["betelgeuse","alnitak"],["bellatrix","mintaka"],["alnitak","alnilam"],["alnilam","mintaka"],["alnitak","saiph"],["mintaka","rigel"],["saiph","rigel"]] },
-      winter: { name:"冬の大三角", ids:["sirius","betelgeuse","procyon"], edges:[["sirius","betelgeuse"],["betelgeuse","procyon"],["procyon","sirius"]] }
+      winter: { name:"冬の大三角", ids:["sirius","betelgeuse","procyon"], edges:[["sirius","betelgeuse"],["betelgeuse","procyon"],["procyon","sirius"]] },
+      // 星座線はIAUの公式定義ではなく、学習用に分かりやすく選んだ線です。
+      scorpius: { name:"さそり座", ids:["dschubba","acrab","antares","sargas","shaula","lesath"], edges:[["dschubba","acrab"],["acrab","antares"],["antares","sargas"],["sargas","shaula"],["shaula","lesath"]] },
+      sagittarius: { name:"いて座（主要星）", ids:["kausBorealis","kausMedia","kausAustralis","nunki","ascella"], edges:[["kausBorealis","kausMedia"],["kausMedia","kausAustralis"],["kausMedia","nunki"],["nunki","ascella"],["ascella","kausAustralis"]] },
+      ophiuchus: { name:"へびつかい座（主要星）", ids:["rasalhague","cebalrai","yedPrior","yedPosterior","sabik"], edges:[["rasalhague","cebalrai"],["cebalrai","yedPosterior"],["yedPosterior","yedPrior"],["yedPrior","sabik"],["sabik","rasalhague"]] }
     };
     const PLANETS = [
       { id:"mercury", nameJa:"水星", body:"Mercury", color:"#cfc6b8", size:9 },
