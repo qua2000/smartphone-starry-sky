@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>スマホ星空 — 月の予測位置</title>
+  <title>スマホ星空 — Moon表示</title>
   <style>
     :root {
       color-scheme: dark;
@@ -88,6 +88,19 @@
     .moon-marker::before { width: 7px; height: 7px; border-radius: 50%; }
     .moon-marker::after { width: 76px; height: 1px; opacity: 0.65; }
 
+    .moon-name {
+      position: absolute;
+      z-index: 2;
+      padding: 5px 9px;
+      border-radius: 999px;
+      color: #201600;
+      background: var(--accent);
+      font-size: 0.9rem;
+      font-weight: 800;
+      pointer-events: none;
+      transform: translate(15px, -60px);
+    }
+
     .message {
       position: absolute;
       inset: 0;
@@ -156,14 +169,15 @@
 <body>
   <main class="app">
     <header>
-      <h1>スマホ星空：⑤ 月の予測位置</h1>
-      <p>月の方位角・高度とスマホの向きから、カメラ映像の上に予測位置を重ねます。</p>
+      <h1>スマホ星空：⑥ Moon表示</h1>
+      <p>月の予測位置が表示されたとき、NameボタンでMoonという名前を出します。</p>
     </header>
 
     <section class="camera-area" aria-label="カメラ映像">
       <video id="camera" autoplay playsinline muted></video>
       <!-- この丸印は「月の予測位置」です。名称は次の⑥で追加します。 -->
       <div id="moonMarker" class="moon-marker" hidden aria-label="月の予測位置"></div>
+      <div id="moonName" class="moon-name" hidden aria-live="polite">Moon</div>
 
       <section id="infoCard" class="info-card" hidden aria-live="polite">
         <h2>いま取得・計算している情報</h2>
@@ -206,11 +220,12 @@
       <button id="orientationButton" class="secondary" type="button" disabled>スマホの向きを取得する</button>
       <button id="moonButton" type="button" disabled>月の位置を計算する</button>
       <button id="arButton" type="button" disabled>月の予測位置を重ねる</button>
+      <button id="nameButton" class="secondary" type="button" disabled>Name</button>
       <p id="actionStatus">月の位置の計算には、まず現在地が必要です。位置情報は保存・送信しません。</p>
     </section>
 
     <footer>
-      <p>月が地平線より上にあり、スマホが月の方向を向くと、琥珀色の丸印が予測位置に表示されます。丸印は目安で、端末ごとにずれが出る場合があります。</p>
+      <p>丸印は月の予測位置です。丸印が見えているときにNameを押すと、丸印の近くにMoonと表示されます。</p>
     </footer>
   </main>
 
@@ -226,7 +241,9 @@
     const orientationButton = document.getElementById("orientationButton");
     const moonButton = document.getElementById("moonButton");
     const arButton = document.getElementById("arButton");
+    const nameButton = document.getElementById("nameButton");
     const moonMarker = document.getElementById("moonMarker");
+    const moonName = document.getElementById("moonName");
     const actionStatus = document.getElementById("actionStatus");
     const infoCard = document.getElementById("infoCard");
     const timeValue = document.getElementById("timeValue");
@@ -248,6 +265,7 @@
     let currentOrientation = null;
     let currentMoonPosition = null;
     let arEnabled = false;
+    let moonNameVisible = false;
 
     function updateClock() {
       timeValue.textContent = new Date().toLocaleString("ja-JP", {
@@ -489,6 +507,10 @@
       const { azimuth, altitude } = currentMoonPosition;
       if (altitude <= 0) {
         moonMarker.hidden = true;
+        moonName.hidden = true;
+        moonNameVisible = false;
+        nameButton.disabled = true;
+        nameButton.textContent = "Name";
         actionStatus.textContent = "月は現在、地平線より下にあります。そのため丸印は表示しません。高度が0°より大きい時間にもう一度お試しください。";
         actionStatus.className = "";
         return;
@@ -512,6 +534,10 @@
       const forward = -deviceVector[2];
       if (forward <= 0.01) {
         moonMarker.hidden = true;
+        moonName.hidden = true;
+        moonNameVisible = false;
+        nameButton.disabled = true;
+        nameButton.textContent = "Name";
         actionStatus.textContent = "月は地平線より上ですが、現在のカメラの後ろ側にあります。スマホを月の方位角に近い方向へ向けてください。";
         actionStatus.className = "";
         return;
@@ -527,15 +553,27 @@
 
       if (Math.abs(normalizedX) > 1 || Math.abs(normalizedY) > 1) {
         moonMarker.hidden = true;
+        moonName.hidden = true;
+        moonNameVisible = false;
+        nameButton.disabled = true;
+        nameButton.textContent = "Name";
         actionStatus.textContent = "月は地平線より上ですが、現在はカメラの画面外にあります。月の方位角・高度を参考に、ゆっくりスマホを動かしてください。";
         actionStatus.className = "";
         return;
       }
 
-      moonMarker.style.left = `${(normalizedX + 1) * 50}%`;
-      moonMarker.style.top = `${(1 - normalizedY) * 50}%`;
+      const screenLeft = `${(normalizedX + 1) * 50}%`;
+      const screenTop = `${(1 - normalizedY) * 50}%`;
+      moonMarker.style.left = screenLeft;
+      moonMarker.style.top = screenTop;
+      moonName.style.left = screenLeft;
+      moonName.style.top = screenTop;
       moonMarker.hidden = false;
-      actionStatus.textContent = "琥珀色の丸印が、計算した月の予測位置です。実際の月とのずれは、次の段階以降で補正できるようにします。";
+      moonName.hidden = !moonNameVisible;
+      nameButton.disabled = false;
+      actionStatus.textContent = moonNameVisible
+        ? "Moonは、表示している丸印が月の予測位置であることを示す名前です。"
+        : "琥珀色の丸印が、計算した月の予測位置です。Nameを押すと、丸印の近くにMoonと表示されます。";
       actionStatus.className = "success";
     }
 
@@ -565,11 +603,28 @@
       updateMoonOverlay();
     }
 
+    function toggleMoonName() {
+      if (moonMarker.hidden) {
+        actionStatus.textContent = "月の丸印が見えているときにNameを押してください。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      moonNameVisible = !moonNameVisible;
+      moonName.hidden = !moonNameVisible;
+      nameButton.textContent = moonNameVisible ? "Nameを隠す" : "Name";
+      actionStatus.textContent = moonNameVisible
+        ? "丸印の近くにMoonと表示しました。"
+        : "Moonの表示を隠しました。";
+      actionStatus.className = "success";
+    }
+
     startButton.addEventListener("click", startCamera);
     locationButton.addEventListener("click", getCurrentLocation);
     orientationButton.addEventListener("click", startOrientation);
     moonButton.addEventListener("click", startMoonCalculation);
     arButton.addEventListener("click", startMoonOverlay);
+    nameButton.addEventListener("click", toggleMoonName);
   </script>
 </body>
 </html>
