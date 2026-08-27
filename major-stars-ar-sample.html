@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>スマホ星空 — 主要な一等星と夏の大三角</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #06111f;
+      --panel: rgba(5, 16, 31, 0.88);
+      --text: #f6f8ff;
+      --subtext: #c6d2e9;
+      --accent: #a9d8ff;
+      --accent-strong: #ffffff;
+      --danger: #ffb4ab;
+      --success: #a8e6c3;
+      --line: rgba(170, 217, 255, 0.88);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100svh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    }
+
+    .app {
+      min-height: 100svh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    header, footer {
+      padding: 13px 18px;
+      background: var(--panel);
+    }
+
+    h1 { margin: 0; font-size: 1.04rem; }
+    header p, footer p, .controls p {
+      margin: 5px 0 0;
+      color: var(--subtext);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .camera-area {
+      position: relative;
+      min-height: 50svh;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      background: #000;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+
+    /* 透明Canvasには、夏の大三角の線だけを描きます。 */
+    #constellationCanvas {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* 星の点は、JavaScriptが必要な数だけこの層へ追加します。 */
+    #starLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .star-marker {
+      --star-color: #ffffff;
+      --star-size: 13px;
+      position: absolute;
+      width: var(--star-size);
+      height: var(--star-size);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      border-radius: 50%;
+      background: var(--star-color);
+      box-shadow: 0 0 6px 2px var(--star-color), 0 0 16px 4px color-mix(in srgb, var(--star-color) 38%, transparent);
+      transform: translate(-50%, -50%);
+    }
+
+    /* 夏の大三角に含まれる星は、小さな十字線を付けて見つけやすくします。 */
+    .star-marker.triangle-star::before,
+    .star-marker.triangle-star::after {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      content: "";
+      background: rgba(255, 255, 255, 0.95);
+      transform: translate(-50%, -50%);
+    }
+
+    .star-marker.triangle-star::before { width: calc(var(--star-size) + 8px); height: 1px; }
+    .star-marker.triangle-star::after { width: 1px; height: calc(var(--star-size) + 8px); }
+
+    .message {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: linear-gradient(180deg, rgba(6, 17, 31, 0.45), rgba(6, 17, 31, 0.9));
+      text-align: center;
+    }
+
+    .message[hidden], .info-card[hidden] { display: none; }
+    .message-box { max-width: 340px; }
+    .message p { margin: 0 0 16px; color: var(--subtext); line-height: 1.7; }
+
+    .info-card {
+      position: absolute;
+      right: 9px;
+      bottom: 9px;
+      left: 9px;
+      z-index: 3;
+      padding: 11px 12px;
+      border-radius: 15px;
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+    }
+
+    .info-card h2 { margin: 0 0 7px; font-size: 0.87rem; }
+
+    dl {
+      display: grid;
+      grid-template-columns: 7em 1fr;
+      gap: 3px 8px;
+      margin: 0;
+      font-size: 0.76rem;
+      line-height: 1.4;
+    }
+
+    dt { color: var(--subtext); }
+    dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .star-value { color: var(--accent); font-weight: 800; }
+
+    .controls {
+      display: grid;
+      gap: 7px;
+      padding: 11px 18px 8px;
+      background: var(--panel);
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      color: #0b2237;
+      background: var(--accent);
+      font-size: 0.94rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button.secondary { color: var(--text); background: rgba(255, 255, 255, 0.12); }
+    button.active { color: #06111f; background: var(--success); }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    .error { color: var(--danger) !important; font-weight: 700; }
+    .success { color: var(--success) !important; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>スマホ星空：主要な一等星と夏の大三角</h1>
+      <p>シリウス、ベガ、アルタイル、デネブ、アークトゥルスを予測位置として表示します。</p>
+    </header>
+
+    <section id="cameraArea" class="camera-area" aria-label="カメラ映像">
+      <video id="camera" autoplay playsinline muted></video>
+      <canvas id="constellationCanvas" aria-label="夏の大三角の線"></canvas>
+      <div id="starLayer" aria-label="主要な一等星の予測位置"></div>
+
+      <section id="infoCard" class="info-card" hidden aria-live="polite">
+        <h2>星空の計算結果</h2>
+        <dl>
+          <dt>現在時刻</dt>
+          <dd id="timeValue">未開始</dd>
+          <dt>緯度・経度</dt>
+          <dd id="locationValue">未取得</dd>
+          <dt>スマホの方位</dt>
+          <dd id="headingValue">未取得</dd>
+          <dt>画面内の星</dt>
+          <dd id="visibleStarsValue" class="star-value">未計算</dd>
+          <dt>夏の大三角</dt>
+          <dd id="triangleStateValue" class="star-value">未表示</dd>
+        </dl>
+      </section>
+
+      <div id="message" class="message">
+        <div class="message-box">
+          <p id="status">カメラ、現在地、スマホの向きを順に取得してから、星の予測位置を表示します。</p>
+          <button id="cameraButton" type="button">カメラを開始する</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="操作ボタン">
+      <button id="locationButton" class="secondary" type="button" disabled>現在地を取得する</button>
+      <button id="orientationButton" class="secondary" type="button" disabled>スマホの向きを取得する</button>
+      <button id="starsButton" type="button" disabled>主要な一等星を表示する</button>
+      <button id="triangleButton" class="secondary" type="button" disabled>夏の大三角の線を表示する</button>
+      <p id="actionStatus">初めて使うときは、カメラと位置情報の使用を許可してください。位置情報は保存・送信しません。</p>
+    </section>
+
+    <footer>
+      <p>点と線は、カメラが星を画像認識した結果ではなく、星表・現在地・時刻・スマホ姿勢から求めた予測位置です。高度が10°以下の星は表示しません。</p>
+    </footer>
+  </main>
+
+  <!-- 恒星の赤経・赤緯を、観測地から見た方位角・高度へ変換するライブラリです。 -->
+  <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+  <script>
+    // -------------------------------------------------------------------------
+    // 1. 星表：最初は5個の明るい星だけを配列に入れます。
+    // -------------------------------------------------------------------------
+    // 値はSIMBADのICRS/J2000座標を、小数の時・度に変換したものです。
+    // この配列に星を追加すれば、同じ計算・描画処理で星を増やせます。
+    const BRIGHT_STARS = [
+      {
+        id: "sirius",
+        nameJa: "シリウス",
+        nameEn: "Sirius",
+        raHoursJ2000: 6.752477022222,
+        decDegJ2000: -16.716115861111,
+        magnitude: -1.46,
+        color: "#e8f5ff",
+        markerSize: 16
+      },
+      {
+        id: "vega",
+        nameJa: "ベガ",
+        nameEn: "Vega",
+        raHoursJ2000: 18.615648986111,
+        decDegJ2000: 38.783688944444,
+        magnitude: 0.03,
+        color: "#b9d8ff",
+        markerSize: 14
+      },
+      {
+        id: "altair",
+        nameJa: "アルタイル",
+        nameEn: "Altair",
+        raHoursJ2000: 19.846388486110,
+        decDegJ2000: 8.868321194443,
+        magnitude: 0.76,
+        color: "#d9edff",
+        markerSize: 12
+      },
+      {
+        id: "deneb",
+        nameJa: "デネブ",
+        nameEn: "Deneb",
+        raHoursJ2000: 20.690531983333,
+        decDegJ2000: 45.280338805554,
+        magnitude: 1.25,
+        color: "#d8e8ff",
+        markerSize: 11
+      },
+      {
+        id: "arcturus",
+        nameJa: "アークトゥルス",
+        nameEn: "Arcturus",
+        raHoursJ2000: 14.261020019444,
+        decDegJ2000: 19.182409166666,
+        magnitude: -0.05,
+        color: "#ffd4a8",
+        markerSize: 14
+      }
+    ];
+
+    // 夏の大三角は「星座」ではなく、3つの星を結ぶ有名な星の並び（アステリズム）です。
+    const SUMMER_TRIANGLE = {
+      nameJa: "夏の大三角",
+      starIds: ["vega", "altair", "deneb"],
+      edges: [
+        ["vega", "altair"],
+        ["altair", "deneb"],
+        ["deneb", "vega"]
+      ]
+    };
+
+    // -------------------------------------------------------------------------
+    // 2. HTMLの部品を取得する
+    // -------------------------------------------------------------------------
+    const cameraArea = document.getElementById("cameraArea");
+    const video = document.getElementById("camera");
+    const constellationCanvas = document.getElementById("constellationCanvas");
+    const constellationContext = constellationCanvas.getContext("2d");
+    const starLayer = document.getElementById("starLayer");
+    const message = document.getElementById("message");
+    const status = document.getElementById("status");
+    const cameraButton = document.getElementById("cameraButton");
+    const locationButton = document.getElementById("locationButton");
+    const orientationButton = document.getElementById("orientationButton");
+    const starsButton = document.getElementById("starsButton");
+    const triangleButton = document.getElementById("triangleButton");
+    const infoCard = document.getElementById("infoCard");
+    const timeValue = document.getElementById("timeValue");
+    const locationValue = document.getElementById("locationValue");
+    const headingValue = document.getElementById("headingValue");
+    const visibleStarsValue = document.getElementById("visibleStarsValue");
+    const triangleStateValue = document.getElementById("triangleStateValue");
+    const actionStatus = document.getElementById("actionStatus");
+
+    // -------------------------------------------------------------------------
+    // 3. 現在の状態を覚えておく変数
+    // -------------------------------------------------------------------------
+    let currentCoordinates = null;
+    let currentOrientation = null;
+    let starsVisible = false;
+    let triangleVisible = false;
+    let clockTimerId = null;
+    let starTimerId = null;
+    let orientationListening = false;
+    const starMarkers = new Map();
+    let projectedStars = new Map();
+
+    function normalizeDegrees(degrees) {
+      return (degrees % 360 + 360) % 360;
+    }
+
+    function degreesToRadians(degrees) {
+      return degrees * Math.PI / 180;
+    }
+
+    function directionName(degrees) {
+      const names = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
+      return names[Math.round(normalizeDegrees(degrees) / 45) % 8];
+    }
+
+    // 0°と360°の境目を自然につなげる、方位角専用の平滑化です。
+    function smoothAngle(previous, next, factor) {
+      const difference = ((next - previous + 540) % 360) - 180;
+      return normalizeDegrees(previous + difference * factor);
+    }
+
+    function smoothValue(previous, next, factor) {
+      return previous + (next - previous) * factor;
+    }
+
+    function clamp(value, minimum, maximum) {
+      return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    function updateClock() {
+      timeValue.textContent = new Date().toLocaleString("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. カメラ、位置情報、スマホの姿勢を取得する
+    // -------------------------------------------------------------------------
+    async function startCamera() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        status.textContent = "このブラウザではカメラ機能を利用できません。Chromeで開いてください。";
+        status.className = "error";
+        return;
+      }
+
+      cameraButton.disabled = true;
+      status.textContent = "カメラの許可を待っています…";
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+
+        message.hidden = true;
+        infoCard.hidden = false;
+        locationButton.disabled = false;
+        orientationButton.disabled = false;
+        updateClock();
+        clockTimerId ??= window.setInterval(updateClock, 1000);
+        resizeConstellationCanvas();
+      } catch (error) {
+        console.error(error);
+        status.textContent = "カメラを開始できませんでした。Chromeのカメラ許可を確認してください。";
+        status.className = "error";
+        cameraButton.disabled = false;
+      }
+    }
+
+    function updateStarButtons() {
+      // 位置と端末姿勢の両方がそろった時だけ、星の表示を開始できます。
+      const canStart = currentCoordinates !== null && currentOrientation !== null;
+      starsButton.disabled = !canStart;
+      triangleButton.disabled = !starsVisible;
+    }
+
+    function getCurrentLocation() {
+      if (!navigator.geolocation) {
+        actionStatus.textContent = "このブラウザでは位置情報を利用できません。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      locationButton.disabled = true;
+      actionStatus.textContent = "位置情報の許可を待っています…";
+      actionStatus.className = "";
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          currentCoordinates = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
+          locationValue.textContent = `${currentCoordinates.latitude.toFixed(4)}°, ${currentCoordinates.longitude.toFixed(4)}°`;
+          locationButton.disabled = false;
+          locationButton.textContent = "現在地を更新する";
+          actionStatus.textContent = "現在地を取得しました。次にスマホの向きを取得してください。";
+          actionStatus.className = "success";
+          updateStarButtons();
+        },
+        (error) => {
+          const messages = {
+            [error.PERMISSION_DENIED]: "位置情報の使用が許可されませんでした。Chromeの確認画面で「許可」を選んでください。",
+            [error.POSITION_UNAVAILABLE]: "現在地を確認できませんでした。スマホ本体の位置情報設定を確認してください。",
+            [error.TIMEOUT]: "位置情報の取得に時間がかかりました。もう一度お試しください。"
+          };
+          actionStatus.textContent = messages[error.code] || "位置情報を取得できませんでした。";
+          actionStatus.className = "error";
+          locationButton.disabled = false;
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+
+    function handleOrientation(event) {
+      if (event.alpha === null || event.beta === null || event.gamma === null) return;
+
+      // 1個のベガARサンプルと同じく、センサーの微小な揺れを少し抑えます。
+      const factor = 0.18;
+      currentOrientation = currentOrientation === null
+        ? { alpha: event.alpha, beta: event.beta, gamma: event.gamma }
+        : {
+            alpha: smoothAngle(currentOrientation.alpha, event.alpha, factor),
+            beta: smoothValue(currentOrientation.beta, event.beta, factor),
+            gamma: smoothValue(currentOrientation.gamma, event.gamma, factor)
+          };
+
+      const heading = normalizeDegrees(360 - currentOrientation.alpha);
+      headingValue.textContent = `${heading.toFixed(0)}°（${directionName(heading)}・目安）`;
+      updateStarButtons();
+
+      // 星を表示中なら、スマホの動きに合わせて画面上の点と線を更新します。
+      if (starsVisible) updateSkyOverlay();
+    }
+
+    async function startOrientation() {
+      if (!("DeviceOrientationEvent" in window)) {
+        actionStatus.textContent = "このスマホまたはブラウザでは、向きの情報を利用できません。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      try {
+        if (typeof DeviceOrientationEvent.requestPermission === "function") {
+          const permission = await DeviceOrientationEvent.requestPermission(true);
+          if (permission !== "granted") throw new Error("permission-denied");
+        }
+
+        if (!orientationListening) {
+          window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+          window.addEventListener("deviceorientation", handleOrientation, true);
+          orientationListening = true;
+        }
+
+        orientationButton.textContent = "向きを取得中";
+        actionStatus.textContent = "スマホを少し動かし、方位の数字が表示されることを確認してください。";
+        actionStatus.className = "success";
+      } catch (error) {
+        console.error(error);
+        actionStatus.textContent = "向きの情報を開始できませんでした。ブラウザとスマホのセンサー設定を確認してください。";
+        actionStatus.className = "error";
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. どの星にも使える、赤経・赤緯から方位角・高度への変換
+    // -------------------------------------------------------------------------
+    function calculateStarHorizontalPosition(star, date, latitude, longitude) {
+      if (typeof Astronomy === "undefined") {
+        throw new Error("Astronomy Engineを読み込めませんでした。");
+      }
+
+      const time = new Astronomy.AstroTime(date);
+      const observer = new Astronomy.Observer(latitude, longitude, 0);
+
+      // 星表のJ2000座標を3次元ベクトルへ変換します。
+      const starEqjSphere = new Astronomy.Spherical(
+        star.decDegJ2000,
+        star.raHoursJ2000 * 15,
+        1
+      );
+      const starEqjVector = Astronomy.VectorFromSphere(starEqjSphere, time);
+
+      // J2000座標を、実際に観測する日付の赤道座標へ変換します。
+      const starEqdVector = Astronomy.RotateVector(
+        Astronomy.Rotation_EQJ_EQD(time),
+        starEqjVector
+      );
+      const starEqd = Astronomy.EquatorFromVector(starEqdVector);
+
+      // 観測地から見た方位角・高度を求めます。
+      return Astronomy.Horizon(time, observer, starEqd.ra, starEqd.dec, "normal");
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. 方位角・高度を、カメラ画面のX・Y位置へ変換する
+    // -------------------------------------------------------------------------
+    function rotateX(vector, angle) {
+      const [x, y, z] = vector;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      return [x, y * cosine - z * sine, y * sine + z * cosine];
+    }
+
+    function rotateY(vector, angle) {
+      const [x, y, z] = vector;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      return [x * cosine + z * sine, y, -x * sine + z * cosine];
+    }
+
+    function rotateZ(vector, angle) {
+      const [x, y, z] = vector;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      return [x * cosine - y * sine, x * sine + y * cosine, z];
+    }
+
+    function projectAzimuthAltitudeToScreen(azimuthDeg, altitudeDeg) {
+      if (currentOrientation === null) return null;
+
+      // 地平座標を、東(x)・北(y)・上(z)を基準とした3次元の矢印へ変換します。
+      const azimuthRad = degreesToRadians(azimuthDeg);
+      const altitudeRad = degreesToRadians(altitudeDeg);
+      const worldVector = [
+        Math.cos(altitudeRad) * Math.sin(azimuthRad),
+        Math.cos(altitudeRad) * Math.cos(azimuthRad),
+        Math.sin(altitudeRad)
+      ];
+
+      // スマホのalpha・beta・gammaの逆回転を順に適用します。
+      let deviceVector = rotateZ(worldVector, -degreesToRadians(currentOrientation.alpha));
+      deviceVector = rotateX(deviceVector, -degreesToRadians(currentOrientation.beta));
+      deviceVector = rotateY(deviceVector, -degreesToRadians(currentOrientation.gamma));
+
+      // 背面カメラは、スマホ座標の-z方向を向くという近似です。
+      const forward = -deviceVector[2];
+      if (forward <= 0.01) return null;
+
+      // まずは縦の視野角43°という近似を使います。正確に合わせるには校正が必要です。
+      const verticalFov = degreesToRadians(43);
+      const aspectRatio = video.clientWidth / video.clientHeight;
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspectRatio);
+      const normalizedX = deviceVector[0] / forward / Math.tan(horizontalFov / 2);
+      const normalizedY = deviceVector[1] / forward / Math.tan(verticalFov / 2);
+
+      // 画面端で細かく消えないよう、少しの余裕を持たせます。
+      if (Math.abs(normalizedX) > 1.12 || Math.abs(normalizedY) > 1.12) return null;
+
+      return {
+        xPercent: (clamp(normalizedX, -0.96, 0.96) + 1) * 50,
+        yPercent: (1 - clamp(normalizedY, -0.96, 0.96)) * 50
+      };
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. 星の点を作る・更新する・不要なら消す
+    // -------------------------------------------------------------------------
+    function updateStarMarkers(visibleStars) {
+      const visibleIds = new Set(visibleStars.map(({ star }) => star.id));
+
+      // 今回画面外になった星の点を消します。
+      for (const [starId, marker] of starMarkers) {
+        if (!visibleIds.has(starId)) {
+          marker.remove();
+          starMarkers.delete(starId);
+        }
+      }
+
+      // 今回画面内にある星の点を、必要なら作成し、座標を更新します。
+      for (const { star, screen } of visibleStars) {
+        let marker = starMarkers.get(star.id);
+        if (!marker) {
+          marker = document.createElement("div");
+          marker.className = "star-marker";
+          marker.setAttribute("role", "img");
+          marker.setAttribute("aria-label", `${star.nameJa}（${star.nameEn}）の予測位置`);
+          marker.title = `${star.nameJa} / ${star.nameEn}`;
+          starLayer.append(marker);
+          starMarkers.set(star.id, marker);
+        }
+
+        marker.classList.toggle("triangle-star", SUMMER_TRIANGLE.starIds.includes(star.id));
+        marker.style.setProperty("--star-color", star.color);
+        marker.style.setProperty("--star-size", `${star.markerSize}px`);
+        marker.style.left = `${screen.xPercent}%`;
+        marker.style.top = `${screen.yPercent}%`;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. 夏の大三角を、透明Canvasに線として描く
+    // -------------------------------------------------------------------------
+    function resizeConstellationCanvas() {
+      const ratio = window.devicePixelRatio || 1;
+      const width = cameraArea.clientWidth;
+      const height = cameraArea.clientHeight;
+      constellationCanvas.width = Math.floor(width * ratio);
+      constellationCanvas.height = Math.floor(height * ratio);
+      constellationContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+      constellationContext.clearRect(0, 0, width, height);
+    }
+
+    function drawSummerTriangle() {
+      const width = cameraArea.clientWidth;
+      const height = cameraArea.clientHeight;
+      constellationContext.clearRect(0, 0, width, height);
+
+      if (!triangleVisible) {
+        triangleStateValue.textContent = "非表示";
+        return;
+      }
+
+      const points = SUMMER_TRIANGLE.starIds.map((id) => projectedStars.get(id));
+      if (points.some((point) => point === undefined)) {
+        triangleStateValue.textContent = "3星が同時に画面内に入ると表示";
+        return;
+      }
+
+      constellationContext.save();
+      constellationContext.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--line");
+      constellationContext.lineWidth = 2;
+      constellationContext.setLineDash([7, 5]);
+      constellationContext.shadowColor = "rgba(169, 216, 255, 0.72)";
+      constellationContext.shadowBlur = 8;
+      constellationContext.beginPath();
+
+      // edgesには [始点の星ID, 終点の星ID] を入れています。
+      for (const [fromId, toId] of SUMMER_TRIANGLE.edges) {
+        const from = projectedStars.get(fromId);
+        const to = projectedStars.get(toId);
+        constellationContext.moveTo(from.screen.xPercent * width / 100, from.screen.yPercent * height / 100);
+        constellationContext.lineTo(to.screen.xPercent * width / 100, to.screen.yPercent * height / 100);
+      }
+      constellationContext.stroke();
+      constellationContext.restore();
+      triangleStateValue.textContent = "表示中（ベガ・アルタイル・デネブ）";
+    }
+
+    // -------------------------------------------------------------------------
+    // 9. 全ての星を計算し、画面内の星だけを描く
+    // -------------------------------------------------------------------------
+    function updateSkyOverlay() {
+      if (!starsVisible || currentCoordinates === null || currentOrientation === null) return;
+
+      try {
+        const date = new Date();
+        const visibleStars = [];
+        projectedStars = new Map();
+
+        for (const star of BRIGHT_STARS) {
+          const horizontal = calculateStarHorizontalPosition(
+            star,
+            date,
+            currentCoordinates.latitude,
+            currentCoordinates.longitude
+          );
+
+          // 地平線近くの星は見えにくく、建物・大気の影響も大きいため、最初は隠します。
+          if (horizontal.altitude <= 10) continue;
+
+          const screen = projectAzimuthAltitudeToScreen(
+            normalizeDegrees(horizontal.azimuth),
+            horizontal.altitude
+          );
+          if (screen === null) continue;
+
+          const projected = { star, screen, horizontal };
+          visibleStars.push(projected);
+          projectedStars.set(star.id, projected);
+        }
+
+        updateStarMarkers(visibleStars);
+        drawSummerTriangle();
+
+        if (visibleStars.length === 0) {
+          visibleStarsValue.textContent = "0個（空かカメラの方向を変えてください）";
+          actionStatus.textContent = "対象の星が地平線の下にあるか、カメラの視野外です。夜空へゆっくりスマホを向けてください。";
+          actionStatus.className = "";
+        } else {
+          const names = visibleStars.map(({ star }) => star.nameJa).join("、");
+          visibleStarsValue.textContent = `${visibleStars.length}個：${names}`;
+          actionStatus.textContent = "点は計算上の星の予測位置です。夏の大三角は、3つの星が同時に画面内に入ると線で結ばれます。";
+          actionStatus.className = "success";
+        }
+      } catch (error) {
+        console.error(error);
+        visibleStarsValue.textContent = "計算エラー";
+        triangleStateValue.textContent = "計算エラー";
+        actionStatus.textContent = "星の位置を計算できませんでした。ページを開き直して、もう一度お試しください。";
+        actionStatus.className = "error";
+      }
+    }
+
+    function toggleStars() {
+      if (!starsVisible) {
+        starsVisible = true;
+        starsButton.textContent = "主要な一等星を隠す";
+        starsButton.classList.add("active");
+        updateSkyOverlay();
+        starTimerId ??= window.setInterval(updateSkyOverlay, 1000);
+      } else {
+        starsVisible = false;
+        triangleVisible = false;
+        starMarkers.forEach((marker) => marker.remove());
+        starMarkers.clear();
+        projectedStars.clear();
+        resizeConstellationCanvas();
+        starsButton.textContent = "主要な一等星を表示する";
+        starsButton.classList.remove("active");
+        triangleButton.textContent = "夏の大三角の線を表示する";
+        triangleButton.classList.remove("active");
+        visibleStarsValue.textContent = "非表示";
+        triangleStateValue.textContent = "非表示";
+        actionStatus.textContent = "主要な一等星を隠しました。";
+        actionStatus.className = "";
+      }
+      updateStarButtons();
+    }
+
+    function toggleSummerTriangle() {
+      triangleVisible = !triangleVisible;
+      triangleButton.textContent = triangleVisible
+        ? "夏の大三角の線を隠す"
+        : "夏の大三角の線を表示する";
+      triangleButton.classList.toggle("active", triangleVisible);
+      updateSkyOverlay();
+    }
+
+    window.addEventListener("resize", () => {
+      resizeConstellationCanvas();
+      if (starsVisible) updateSkyOverlay();
+    });
+
+    cameraButton.addEventListener("click", startCamera);
+    locationButton.addEventListener("click", getCurrentLocation);
+    orientationButton.addEventListener("click", startOrientation);
+    starsButton.addEventListener("click", toggleStars);
+    triangleButton.addEventListener("click", toggleSummerTriangle);
+  </script>
+</body>
+</html>
