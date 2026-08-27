@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>スマホ星空 — カメラ確認</title>
+  <title>スマホ星空 — 位置と時刻の確認</title>
   <style>
     :root {
       color-scheme: dark;
       --bg: #07111f;
-      --panel: rgba(7, 17, 31, 0.84);
+      --panel: rgba(7, 17, 31, 0.86);
       --text: #f6f8ff;
       --subtext: #bac8df;
       --accent: #ffc768;
       --danger: #ffb4ab;
+      --success: #a8e6c3;
     }
 
     * { box-sizing: border-box; }
@@ -32,19 +33,19 @@
     }
 
     header, footer {
-      padding: 16px 20px;
+      padding: 14px 20px;
       background: var(--panel);
     }
 
     h1 {
       margin: 0;
-      font-size: 1.1rem;
+      font-size: 1.05rem;
     }
 
     header p, footer p {
-      margin: 6px 0 0;
+      margin: 5px 0 0;
       color: var(--subtext);
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       line-height: 1.5;
     }
 
@@ -54,7 +55,7 @@
       place-items: center;
       overflow: hidden;
       background: #000;
-      min-height: 44svh;
+      min-height: 48svh;
     }
 
     video {
@@ -71,14 +72,12 @@
       place-items: center;
       padding: 24px;
       text-align: center;
-      background: linear-gradient(180deg, rgba(7, 17, 31, 0.5), rgba(7, 17, 31, 0.86));
+      background: linear-gradient(180deg, rgba(7, 17, 31, 0.48), rgba(7, 17, 31, 0.88));
     }
 
     .message[hidden] { display: none; }
 
-    .message-box {
-      max-width: 340px;
-    }
+    .message-box { max-width: 340px; }
 
     .message p {
       margin: 0 0 16px;
@@ -86,11 +85,48 @@
       line-height: 1.7;
     }
 
+    .info-card {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      left: 12px;
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+    }
+
+    .info-card[hidden] { display: none; }
+
+    .info-card h2 {
+      margin: 0 0 8px;
+      font-size: 0.9rem;
+    }
+
+    dl {
+      display: grid;
+      grid-template-columns: 5.5em 1fr;
+      gap: 6px 10px;
+      margin: 0;
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    dt { color: var(--subtext); }
+    dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+      padding: 14px 20px 10px;
+      background: var(--panel);
+    }
+
     button {
-      width: min(100%, 340px);
+      width: 100%;
       border: 0;
       border-radius: 999px;
-      padding: 15px 20px;
+      padding: 14px 18px;
       color: #201600;
       background: var(--accent);
       font-size: 1rem;
@@ -98,38 +134,59 @@
       cursor: pointer;
     }
 
+    button.secondary {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
     button:disabled {
       opacity: 0.65;
       cursor: wait;
     }
 
-    .error {
-      color: var(--danger) !important;
-      font-weight: 600;
-    }
+    .error { color: var(--danger) !important; font-weight: 600; }
+    .success { color: var(--success); }
   </style>
 </head>
 <body>
   <main class="app">
     <header>
-      <h1>スマホ星空：① カメラ表示の確認</h1>
-      <p>この段階では、まだ位置情報・星・月は表示しません。</p>
+      <h1>スマホ星空：② 位置と時刻の確認</h1>
+      <p>カメラ映像の上に、現在時刻と現在地を文字で表示します。</p>
     </header>
 
     <section class="camera-area" aria-label="カメラ映像">
-      <!-- playsinline は、iPhoneで全画面動画になりにくくするための指定です。 -->
       <video id="camera" autoplay playsinline muted></video>
+
+      <section id="infoCard" class="info-card" hidden aria-live="polite">
+        <h2>いま取得している情報</h2>
+        <dl>
+          <dt>現在時刻</dt>
+          <dd id="timeValue">取得中…</dd>
+          <dt>緯度</dt>
+          <dd id="latitudeValue">未取得</dd>
+          <dt>経度</dt>
+          <dd id="longitudeValue">未取得</dd>
+          <dt>位置の精度</dt>
+          <dd id="accuracyValue">未取得</dd>
+        </dl>
+      </section>
 
       <div id="message" class="message">
         <div class="message-box">
-          <p id="status">下のボタンを押すと、スマホの後ろ向きカメラを表示します。</p>
+          <p id="status">まずカメラを開始します。位置情報は、その後に別のボタンで取得します。</p>
           <button id="startButton" type="button">カメラを開始する</button>
         </div>
       </div>
     </section>
 
+    <section class="controls" aria-label="操作ボタン">
+      <button id="locationButton" class="secondary" type="button" disabled>現在地を取得する</button>
+      <p id="locationStatus">位置情報は、月や星がどこに見えるかを後で計算するために使います。保存・送信はしません。</p>
+    </section>
+
     <footer>
-      <p>カメラの使用許可が表示されたら、「許可」を選んでください。映像の保存・送信は行いません。</p>
+      <p>この段階では、位置と時刻を画面へ表示するだけです。方位・月・星はまだ表示しません。</p>
     </footer>
   </main>
 
@@ -139,11 +196,31 @@
     const message = document.getElementById("message");
     const status = document.getElementById("status");
     const startButton = document.getElementById("startButton");
+    const locationButton = document.getElementById("locationButton");
+    const locationStatus = document.getElementById("locationStatus");
+    const infoCard = document.getElementById("infoCard");
+    const timeValue = document.getElementById("timeValue");
+    const latitudeValue = document.getElementById("latitudeValue");
+    const longitudeValue = document.getElementById("longitudeValue");
+    const accuracyValue = document.getElementById("accuracyValue");
+
+    // 現在時刻を、日本で読みやすい形にして画面へ表示します。
+    function updateClock() {
+      const now = new Date();
+      timeValue.textContent = now.toLocaleString("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
 
     async function startCamera() {
       // カメラを使えるブラウザか、最初に確認します。
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        status.textContent = "このブラウザではカメラ機能を利用できません。Safari または Chrome で開いてください。";
+        status.textContent = "このブラウザではカメラ機能を利用できません。Chromeで開いてください。";
         status.className = "error";
         startButton.hidden = true;
         return;
@@ -160,12 +237,15 @@
           audio: false
         });
 
-        // 取得したライブ映像を video タグへ渡して再生します。
         video.srcObject = stream;
         await video.play();
         message.hidden = true;
+        infoCard.hidden = false;
+        locationButton.disabled = false;
+        updateClock();
+        // 1秒ごとに時刻を書き換えます。位置情報は自動取得しません。
+        window.setInterval(updateClock, 1000);
       } catch (error) {
-        // 許可しなかった場合や、カメラが使えない場合の表示です。
         console.error(error);
         status.textContent = "カメラを開始できませんでした。ブラウザのカメラ許可を確認し、もう一度お試しください。";
         status.className = "error";
@@ -174,8 +254,60 @@
       }
     }
 
-    // 利用者がボタンを押したときだけ、カメラへのアクセスを開始します。
+    function showLocationError(error) {
+      let explanation = "位置情報を取得できませんでした。";
+
+      if (error.code === error.PERMISSION_DENIED) {
+        explanation = "位置情報の使用が許可されませんでした。Chromeの確認画面で「許可」を選んでください。";
+      } else if (error.code === error.POSITION_UNAVAILABLE) {
+        explanation = "現在地を確認できませんでした。スマホの位置情報設定を確認してください。";
+      } else if (error.code === error.TIMEOUT) {
+        explanation = "位置情報の取得に時間がかかりました。見通しのよい場所で、もう一度お試しください。";
+      }
+
+      locationStatus.textContent = explanation;
+      locationStatus.className = "error";
+      locationButton.disabled = false;
+      locationButton.textContent = "もう一度、現在地を取得する";
+    }
+
+    function getCurrentLocation() {
+      // 位置情報を使えるか確認します。
+      if (!navigator.geolocation) {
+        locationStatus.textContent = "このブラウザでは位置情報を利用できません。";
+        locationStatus.className = "error";
+        return;
+      }
+
+      locationButton.disabled = true;
+      locationButton.textContent = "現在地を取得中…";
+      locationStatus.textContent = "位置情報の許可を待っています…";
+      locationStatus.className = "";
+
+      // ボタンを押したときだけ、一度だけ現在地を取得します。
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          latitudeValue.textContent = `${latitude.toFixed(5)}°`;
+          longitudeValue.textContent = `${longitude.toFixed(5)}°`;
+          accuracyValue.textContent = `およそ ${Math.round(accuracy)} m`;
+          locationStatus.textContent = "現在地を取得しました。この情報はこの画面での表示と、今後の月の計算にだけ使います。";
+          locationStatus.className = "success";
+          locationButton.disabled = false;
+          locationButton.textContent = "現在地を更新する";
+        },
+        showLocationError,
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
+        }
+      );
+    }
+
+    // 利用者がボタンを押したときだけ、カメラ・位置情報へのアクセスを始めます。
     startButton.addEventListener("click", startCamera);
+    locationButton.addEventListener("click", getCurrentLocation);
   </script>
 </body>
 </html>
