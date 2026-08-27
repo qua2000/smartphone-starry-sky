@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>スマホ星空 — 向きの確認</title>
+  <title>スマホ星空 — 月の位置の確認</title>
   <style>
     :root {
       color-scheme: dark;
       --bg: #07111f;
-      --panel: rgba(7, 17, 31, 0.87);
+      --panel: rgba(7, 17, 31, 0.88);
       --text: #f6f8ff;
       --subtext: #bac8df;
       --accent: #ffc768;
@@ -52,7 +52,7 @@
       place-items: center;
       overflow: hidden;
       background: #000;
-      min-height: 48svh;
+      min-height: 50svh;
     }
 
     video {
@@ -78,28 +78,29 @@
 
     .info-card {
       position: absolute;
-      right: 10px;
-      bottom: 10px;
-      left: 10px;
-      padding: 13px;
+      right: 9px;
+      bottom: 9px;
+      left: 9px;
+      padding: 12px;
       border-radius: 16px;
       background: var(--panel);
       backdrop-filter: blur(10px);
     }
 
-    .info-card h2 { margin: 0 0 8px; font-size: 0.88rem; }
+    .info-card h2 { margin: 0 0 8px; font-size: 0.87rem; }
 
     dl {
       display: grid;
-      grid-template-columns: 6.2em 1fr;
-      gap: 5px 9px;
+      grid-template-columns: 6.5em 1fr;
+      gap: 4px 8px;
       margin: 0;
-      font-size: 0.81rem;
+      font-size: 0.78rem;
       line-height: 1.4;
     }
 
     dt { color: var(--subtext); }
     dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .moon-value { color: var(--accent); font-weight: 700; }
 
     .controls {
       display: grid;
@@ -112,10 +113,10 @@
       width: 100%;
       border: 0;
       border-radius: 999px;
-      padding: 13px 18px;
+      padding: 12px 18px;
       color: #201600;
       background: var(--accent);
-      font-size: 0.96rem;
+      font-size: 0.94rem;
       font-weight: 700;
       cursor: pointer;
     }
@@ -129,15 +130,15 @@
 <body>
   <main class="app">
     <header>
-      <h1>スマホ星空：③ 向きの確認</h1>
-      <p>現在時刻・現在地に加え、スマホの方位角と傾きを文字で表示します。</p>
+      <h1>スマホ星空：④ 月の位置の確認</h1>
+      <p>現在地と時刻から、月の方位角と高度を計算して表示します。</p>
     </header>
 
     <section class="camera-area" aria-label="カメラ映像">
       <video id="camera" autoplay playsinline muted></video>
 
       <section id="infoCard" class="info-card" hidden aria-live="polite">
-        <h2>いま取得している情報</h2>
+        <h2>いま取得・計算している情報</h2>
         <dl>
           <dt>現在時刻</dt>
           <dd id="timeValue">取得中…</dd>
@@ -155,12 +156,18 @@
           <dd id="gammaValue">未取得</dd>
           <dt>センサー状態</dt>
           <dd id="sensorStateValue">未開始</dd>
+          <dt>月の方位角</dt>
+          <dd id="moonAzimuthValue" class="moon-value">未計算</dd>
+          <dt>月の高度</dt>
+          <dd id="moonAltitudeValue" class="moon-value">未計算</dd>
+          <dt>月の見える状態</dt>
+          <dd id="moonVisibilityValue" class="moon-value">未計算</dd>
         </dl>
       </section>
 
       <div id="message" class="message">
         <div class="message-box">
-          <p id="status">まずカメラを開始します。その後、現在地とスマホの向きを別々に確認できます。</p>
+          <p id="status">まずカメラを開始します。その後、現在地を取得してから月の位置を計算します。</p>
           <button id="startButton" type="button">カメラを開始する</button>
         </div>
       </div>
@@ -169,15 +176,18 @@
     <section class="controls" aria-label="操作ボタン">
       <button id="locationButton" class="secondary" type="button" disabled>現在地を取得する</button>
       <button id="orientationButton" class="secondary" type="button" disabled>スマホの向きを取得する</button>
-      <p id="actionStatus">位置情報は月や星がどこに見えるかを計算するため、向きはカメラのどの方向に月を描くかを決めるために使います。いずれも保存・送信しません。</p>
+      <button id="moonButton" type="button" disabled>月の位置を計算する</button>
+      <p id="actionStatus">月の位置の計算には、まず現在地が必要です。位置情報は保存・送信しません。</p>
     </section>
 
     <footer>
-      <p>この段階では数値の確認だけを行います。表示した方位角は、次の段階で月を画面に置くための出発点です。</p>
+      <p>高度が0°より大きければ月は地平線より上、0°より小さければ地平線より下です。この段階では、まだ月の印は描きません。</p>
     </footer>
   </main>
 
-  <script>
+  <!-- 月の天文計算には、バージョン固定したSunCalc 2.0.1を使用します。 -->
+  <script type="module">
+    import * as SunCalc from "https://cdn.jsdelivr.net/npm/suncalc@2.0.1/+esm";
     // HTML上の部品を、JavaScriptから操作できるように取得します。
     const video = document.getElementById("camera");
     const message = document.getElementById("message");
@@ -185,6 +195,7 @@
     const startButton = document.getElementById("startButton");
     const locationButton = document.getElementById("locationButton");
     const orientationButton = document.getElementById("orientationButton");
+    const moonButton = document.getElementById("moonButton");
     const actionStatus = document.getElementById("actionStatus");
     const infoCard = document.getElementById("infoCard");
     const timeValue = document.getElementById("timeValue");
@@ -195,11 +206,15 @@
     const betaValue = document.getElementById("betaValue");
     const gammaValue = document.getElementById("gammaValue");
     const sensorStateValue = document.getElementById("sensorStateValue");
+    const moonAzimuthValue = document.getElementById("moonAzimuthValue");
+    const moonAltitudeValue = document.getElementById("moonAltitudeValue");
+    const moonVisibilityValue = document.getElementById("moonVisibilityValue");
 
     let clockTimerId = null;
+    let moonTimerId = null;
     let orientationListening = false;
+    let currentCoordinates = null;
 
-    // 現在時刻を、日本で読みやすい形にして画面へ表示します。
     function updateClock() {
       timeValue.textContent = new Date().toLocaleString("ja-JP", {
         year: "numeric",
@@ -216,13 +231,11 @@
       return (degrees % 360 + 360) % 360;
     }
 
-    // 例：0度なら北、90度なら東という、日本語の方角に直します。
     function directionName(degrees) {
       const names = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
       return names[Math.round(normalizeDegrees(degrees) / 45) % 8];
     }
 
-    // センサーの値が届くたびに呼ばれ、最新の値を画面へ表示します。
     function handleOrientation(event) {
       const alpha = event.alpha;
       const beta = event.beta;
@@ -233,8 +246,6 @@
         return;
       }
 
-      // iPhone系では webkitCompassHeading があれば優先します。
-      // それ以外では、仕様上の alpha を反転して簡易的な方位角の目安を表示します。
       const hasWebKitHeading = typeof event.webkitCompassHeading === "number";
       const heading = hasWebKitHeading
         ? normalizeDegrees(event.webkitCompassHeading)
@@ -246,9 +257,6 @@
       sensorStateValue.textContent = event.absolute
         ? "絶対方位の情報あり"
         : "相対的な向きの情報";
-
-      actionStatus.textContent = "向きの値を取得しています。スマホをゆっくり北・東・南・西へ向けたり、前後・左右に傾けたりして数値が変わるか確認してください。";
-      actionStatus.className = "success";
     }
 
     async function startCamera() {
@@ -316,13 +324,15 @@
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;
+          currentCoordinates = { latitude, longitude };
           latitudeValue.textContent = `${latitude.toFixed(5)}°`;
           longitudeValue.textContent = `${longitude.toFixed(5)}°`;
           accuracyValue.textContent = `およそ ${Math.round(accuracy)} m`;
-          actionStatus.textContent = "現在地を取得しました。現在地はこの画面の表示と、今後の月の計算にだけ使います。";
+          actionStatus.textContent = "現在地を取得しました。次に「月の位置を計算する」を押してください。";
           actionStatus.className = "success";
           locationButton.disabled = false;
           locationButton.textContent = "現在地を更新する";
+          moonButton.disabled = false;
         },
         showLocationError,
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -342,16 +352,12 @@
       actionStatus.className = "";
 
       try {
-        // iPhone系など、明示的な許可が必要なブラウザだけで許可を求めます。
         if (typeof DeviceOrientationEvent.requestPermission === "function") {
           const permission = await DeviceOrientationEvent.requestPermission(true);
-          if (permission !== "granted") {
-            throw new Error("permission-denied");
-          }
+          if (permission !== "granted") throw new Error("permission-denied");
         }
 
         if (!orientationListening) {
-          // より絶対的な方位データを優先し、使えない機種では通常のイベントを使います。
           window.addEventListener("deviceorientationabsolute", handleOrientation, true);
           window.addEventListener("deviceorientation", handleOrientation, true);
           orientationListening = true;
@@ -359,6 +365,7 @@
 
         sensorStateValue.textContent = "センサーの値を待っています…";
         orientationButton.textContent = "向きの取得中";
+        orientationButton.disabled = false;
       } catch (error) {
         console.error(error);
         actionStatus.textContent = "向きの情報を開始できませんでした。Chromeの権限設定や、スマホのセンサー設定を確認してください。";
@@ -369,10 +376,54 @@
       }
     }
 
-    // 利用者がボタンを押したときだけ、カメラ・位置・向きへのアクセスを始めます。
+    // 月の位置を計算する中心部分です。
+    function updateMoonPosition() {
+      if (currentCoordinates === null) {
+        actionStatus.textContent = "月の位置を計算するには、先に現在地を取得してください。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      if (typeof SunCalc === "undefined") {
+        actionStatus.textContent = "月の計算ライブラリを読み込めませんでした。通信状態を確認して、ページを開き直してください。";
+        actionStatus.className = "error";
+        return;
+      }
+
+      // SunCalcは「現在時刻、緯度、経度」から月の位置を返します。
+      // 方位角は北=0°、東=90°、南=180°、西=270°です。
+      // 高度は地平線=0°、真上=90°で、地平線より下ならマイナスです。
+      const moon = SunCalc.getMoonPosition(
+        new Date(),
+        currentCoordinates.latitude,
+        currentCoordinates.longitude
+      );
+
+      const azimuth = normalizeDegrees(moon.azimuth);
+      const altitude = moon.altitude;
+      moonAzimuthValue.textContent = `${azimuth.toFixed(1)}°（${directionName(azimuth)}）`;
+      moonAltitudeValue.textContent = `${altitude.toFixed(1)}°`;
+      moonVisibilityValue.textContent = altitude > 0
+        ? "地平線より上（計算上は空にあります）"
+        : "地平線より下（計算上は見えません）";
+
+      actionStatus.textContent = "月の位置を計算しています。時刻が進むため、方位角と高度はゆっくり変化します。";
+      actionStatus.className = "success";
+    }
+
+    function startMoonCalculation() {
+      updateMoonPosition();
+      if (moonTimerId === null && currentCoordinates !== null && typeof SunCalc !== "undefined") {
+        // 1秒ごとに計算し直し、時刻の変化に合わせて値を更新します。
+        moonTimerId = window.setInterval(updateMoonPosition, 1000);
+      }
+      moonButton.textContent = "月の位置を更新中";
+    }
+
     startButton.addEventListener("click", startCamera);
     locationButton.addEventListener("click", getCurrentLocation);
     orientationButton.addEventListener("click", startOrientation);
+    moonButton.addEventListener("click", startMoonCalculation);
   </script>
 </body>
 </html>
