@@ -137,6 +137,16 @@
         <option value="lyra">こと座</option>
         <option value="aquila">わし座（主要星）</option>
         <option value="cygnus">はくちょう座</option>
+        <option value="aries">おひつじ座</option>
+        <option value="taurus">おうし座（主要星）</option>
+        <option value="gemini">ふたご座（主要星）</option>
+        <option value="cancer">かに座（主要星）</option>
+        <option value="leo">しし座（主要星）</option>
+        <option value="virgo">おとめ座（主要星）</option>
+        <option value="libra">てんびん座（主要星）</option>
+        <option value="capricornus">やぎ座（主要星）</option>
+        <option value="aquarius">みずがめ座（主要星）</option>
+        <option value="pisces">うお座（主要星）</option>
       </select>
       <p id="actionStatus">カメラと位置情報の使用を許可してください。位置情報や映像を保存・送信する機能はありません。</p>
     </section>
@@ -202,6 +212,56 @@
       { id:"albireo", nameJa:"アルビレオ", nameEn:"Albireo", ra:19.51202, dec:27.95967, color:"#ffc789", size:10 },
       { id:"gienahCyg", nameJa:"ギェナー", nameEn:"Gienah Cygni", ra:20.77018, dec:33.97025, color:"#d3e3ff", size:10 },
       { id:"deltaCyg", nameJa:"デルタ・はくちょう座", nameEn:"Delta Cygni", ra:19.74957, dec:45.13081, color:"#d5e6ff", size:10 }
+
+      // 黄道12星座のうち、先に登録したさそり座・いて座以外の代表星です。
+      // ここでは星座を見つけるための明るい星を選び、全恒星を網羅していません。
+      // おひつじ座
+      { id:"hamal", nameJa:"ハマル", nameEn:"Hamal", ra:2.11953, dec:23.4624, color:"#ffd9ae", size:12 },
+      { id:"sheratan", nameJa:"シェラタン", nameEn:"Sheratan", ra:1.91067, dec:20.8080, color:"#d8e8ff", size:10 },
+      { id:"mesarthim", nameJa:"メサルティム", nameEn:"Mesarthim", ra:1.89218, dec:19.2938, color:"#d8e8ff", size:9 },
+      // おうし座
+      { id:"aldebaran", nameJa:"アルデバラン", nameEn:"Aldebaran", ra:4.59868, dec:16.5093, color:"#ff9d70", size:15 },
+      { id:"elnath", nameJa:"エルナト", nameEn:"Elnath", ra:5.43820, dec:28.6075, color:"#d8e8ff", size:12 },
+      { id:"zetaTauri", nameJa:"ゼータ・タウリ", nameEn:"Zeta Tauri", ra:5.62742, dec:21.1425, color:"#d8e8ff", size:10 },
+      // ふたご座
+      { id:"castor", nameJa:"カストル", nameEn:"Castor", ra:7.57666, dec:31.8883, color:"#d8e8ff", size:13 },
+      { id:"pollux", nameJa:"ポルックス", nameEn:"Pollux", ra:7.75526, dec:28.0262, color:"#ffd9ae", size:14 },
+      { id:"alhena", nameJa:"アルヘナ", nameEn:"Alhena", ra:6.62853, dec:16.3993, color:"#d8e8ff", size:11 },
+      { id:"tejat", nameJa:"テジャト", nameEn:"Tejat", ra:6.38267, dec:22.5136, color:"#ffd9ae", size:10 },
+      // かに座
+      { id:"acubens", nameJa:"アクベンス", nameEn:"Acubens", ra:8.97478, dec:11.8577, color:"#d8e8ff", size:10 },
+      { id:"asellusBorealis", nameJa:"アセルス・ボレアリス", nameEn:"Asellus Borealis", ra:8.72142, dec:21.4685, color:"#d8e8ff", size:9 },
+      { id:"asellusAustralis", nameJa:"アセルス・アウストラリス", nameEn:"Asellus Australis", ra:8.74475, dec:18.1543, color:"#d8e8ff", size:10 },
+      { id:"altarf", nameJa:"アルタルフ", nameEn:"Altarf", ra:8.27525, dec:9.1855, color:"#ffd9ae", size:11 },
+      // しし座
+      { id:"regulus", nameJa:"レグルス", nameEn:"Regulus", ra:10.13953, dec:11.9672, color:"#d8e8ff", size:15 },
+      { id:"denebola", nameJa:"デネボラ", nameEn:"Denebola", ra:11.81770, dec:14.5721, color:"#d8e8ff", size:12 },
+      { id:"algieba", nameJa:"アルギエバ", nameEn:"Algieba", ra:10.33286, dec:19.8415, color:"#ffd9ae", size:12 },
+      { id:"zosma", nameJa:"ゾスマ", nameEn:"Zosma", ra:11.23562, dec:20.5237, color:"#d8e8ff", size:11 },
+      // おとめ座
+      { id:"spica", nameJa:"スピカ", nameEn:"Spica", ra:13.41988, dec:-11.1613, color:"#bdd8ff", size:16 },
+      { id:"porrima", nameJa:"ポリマ", nameEn:"Porrima", ra:12.69437, dec:-1.4494, color:"#d8e8ff", size:11 },
+      { id:"vindemiatrix", nameJa:"ヴィンデミアトリクス", nameEn:"Vindemiatrix", ra:13.03639, dec:10.9592, color:"#d8e8ff", size:11 },
+      { id:"zaniah", nameJa:"ザニア", nameEn:"Zaniah", ra:12.33178, dec:-0.6668, color:"#d8e8ff", size:9 },
+      // てんびん座
+      { id:"zubenelgenubi", nameJa:"ズベン・エルゲヌビ", nameEn:"Zubenelgenubi", ra:14.84702, dec:-16.0418, color:"#d8e8ff", size:11 },
+      { id:"zubeneschamali", nameJa:"ズベン・エスカマリ", nameEn:"Zubeneschamali", ra:15.28344, dec:-9.3829, color:"#bfe0ff", size:12 },
+      { id:"brachium", nameJa:"ブラキウム", nameEn:"Brachium", ra:15.06784, dec:-25.2819, color:"#ffd9ae", size:10 },
+      // やぎ座
+      { id:"denebAlgedi", nameJa:"デネブ・アルゲディ", nameEn:"Deneb Algedi", ra:21.78402, dec:-16.1273, color:"#d8e8ff", size:12 },
+      { id:"dabih", nameJa:"ダビー", nameEn:"Dabih", ra:20.35011, dec:-14.7814, color:"#ffd9ae", size:11 },
+      { id:"nashira", nameJa:"ナシラ", nameEn:"Nashira", ra:21.66818, dec:-16.6623, color:"#d8e8ff", size:10 },
+      { id:"algedi", nameJa:"アルゲディ", nameEn:"Algedi", ra:20.29414, dec:-12.5082, color:"#d8e8ff", size:10 },
+      // みずがめ座
+      { id:"sadalmelik", nameJa:"サダルメリク", nameEn:"Sadalmelik", ra:22.09639, dec:-0.3198, color:"#d8e8ff", size:12 },
+      { id:"sadalsuud", nameJa:"サダルスウド", nameEn:"Sadalsuud", ra:21.52598, dec:-5.5712, color:"#d8e8ff", size:13 },
+      { id:"skat", nameJa:"スカート", nameEn:"Skat", ra:22.91084, dec:-15.8208, color:"#d8e8ff", size:11 },
+      { id:"lambdaAquarii", nameJa:"ラムダ・アクアリ", nameEn:"Lambda Aquarii", ra:22.87693, dec:-7.5796, color:"#ffd9ae", size:9 },
+      // うお座
+      { id:"etaPiscium", nameJa:"イータ・ピスキウム", nameEn:"Eta Piscium", ra:1.52473, dec:15.3458, color:"#ffd9ae", size:11 },
+      { id:"gammaPiscium", nameJa:"ガンマ・ピスキウム", nameEn:"Gamma Piscium", ra:23.28609, dec:3.2823, color:"#d8e8ff", size:10 },
+      { id:"omegaPiscium", nameJa:"オメガ・ピスキウム", nameEn:"Omega Piscium", ra:23.98849, dec:6.8633, color:"#d8e8ff", size:9 },
+      { id:"alrescha", nameJa:"アルレシャ", nameEn:"Alrescha", ra:2.03412, dec:2.7638, color:"#d8e8ff", size:11 },
     ];
     const PATTERNS = {
       summer: { name:"夏の大三角", ids:["vega","altair","deneb"], edges:[["vega","altair"],["altair","deneb"],["deneb","vega"]] },
@@ -215,6 +275,17 @@
       lyra: { name:"こと座", ids:["vega","sheliak","sulafat"], edges:[["vega","sheliak"],["sheliak","sulafat"],["sulafat","vega"]] },
       aquila: { name:"わし座（主要星）", ids:["tarazed","altair","alshain"], edges:[["tarazed","altair"],["altair","alshain"]] },
       cygnus: { name:"はくちょう座", ids:["deneb","sadr","albireo","gienahCyg","deltaCyg"], edges:[["deneb","sadr"],["sadr","albireo"],["sadr","gienahCyg"],["sadr","deltaCyg"]] }
+
+      aries: { name:"おひつじ座", ids:["hamal","sheratan","mesarthim"], edges:[["hamal","sheratan"],["sheratan","mesarthim"]] },
+      taurus: { name:"おうし座（主要星）", ids:["aldebaran","elnath","zetaTauri"], edges:[["elnath","zetaTauri"],["zetaTauri","aldebaran"]] },
+      gemini: { name:"ふたご座（主要星）", ids:["castor","pollux","alhena","tejat"], edges:[["castor","tejat"],["pollux","alhena"],["tejat","alhena"]] },
+      cancer: { name:"かに座（主要星）", ids:["acubens","asellusBorealis","asellusAustralis","altarf"], edges:[["acubens","asellusBorealis"],["asellusBorealis","asellusAustralis"],["asellusAustralis","altarf"]] },
+      leo: { name:"しし座（主要星）", ids:["regulus","algieba","zosma","denebola"], edges:[["regulus","algieba"],["algieba","zosma"],["zosma","denebola"]] },
+      virgo: { name:"おとめ座（主要星）", ids:["spica","porrima","vindemiatrix","zaniah"], edges:[["spica","porrima"],["porrima","zaniah"],["zaniah","vindemiatrix"]] },
+      libra: { name:"てんびん座（主要星）", ids:["zubenelgenubi","zubeneschamali","brachium"], edges:[["zubenelgenubi","zubeneschamali"],["zubenelgenubi","brachium"]] },
+      capricornus: { name:"やぎ座（主要星）", ids:["algedi","dabih","nashira","denebAlgedi"], edges:[["algedi","dabih"],["dabih","nashira"],["nashira","denebAlgedi"]] },
+      aquarius: { name:"みずがめ座（主要星）", ids:["sadalmelik","sadalsuud","lambdaAquarii","skat"], edges:[["sadalmelik","sadalsuud"],["sadalsuud","lambdaAquarii"],["lambdaAquarii","skat"]] },
+      pisces: { name:"うお座（主要星）", ids:["etaPiscium","alrescha","omegaPiscium","gammaPiscium"], edges:[["etaPiscium","alrescha"],["alrescha","omegaPiscium"],["omegaPiscium","gammaPiscium"]] },
     };
     const PLANETS = [
       { id:"mercury", nameJa:"水星", body:"Mercury", color:"#cfc6b8", size:9 },
