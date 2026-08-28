@@ -53,6 +53,12 @@
     button.secondary, select { color: var(--text); background: rgba(255,255,255,.12); }
     button.active { color: #06111f; background: var(--success); }
     button:disabled, select:disabled { opacity: .52; cursor: wait; }
+    .calibration-panel { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(169,216,255,.35); border-radius: 13px; background: rgba(169,216,255,.07); }
+    .calibration-panel[hidden] { display: none; }
+    .calibration-panel p { margin: 0; color: var(--subtext); font-size: .76rem; line-height: 1.5; }
+    .calibration-control { display: grid; grid-template-columns: 6em 1fr 3.7em; align-items: center; gap: 7px; color: var(--subtext); font-size: .76rem; }
+    .calibration-control input { width: 100%; accent-color: var(--accent); }
+    .calibration-control output { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 800; text-align: right; }
     .error { color: var(--danger) !important; font-weight: 700; } .success { color: var(--success) !important; }
   </style>
 </head>
@@ -97,11 +103,20 @@
         <button id="orientationButton" class="secondary" type="button" disabled>スマホの向きを取得する</button>
       </div>
       <div class="button-row">
-        <label class="secondary" style="display:flex;align-items:center;justify-content:center;gap:7px;padding:8px 12px;border-radius:999px;font-size:.78rem;">
-          方位補正 <input id="headingOffsetInput" type="range" min="-30" max="30" step="0.5" value="0" aria-label="方位補正の角度" style="width:92px;accent-color:#a9d8ff;" /> <output id="headingOffsetValue">0.0°</output>
-        </label>
-        <button id="resetCalibrationButton" class="secondary" type="button" disabled>補正をリセット</button>
+        <button id="calibrationGuideButton" class="secondary" type="button" disabled>3軸校正を開く</button>
+        <button id="resetCalibrationButton" class="secondary" type="button" disabled>校正をリセット</button>
       </div>
+      <section id="calibrationPanel" class="calibration-panel" hidden aria-label="3軸校正と視野角の調整">
+        <p><strong>月または金星</strong>を実際に画面中央へ入れ、同じ天体の印が重なるように下の値を少しずつ動かします。最初は方位、次に上下、最後に左右傾きを調整します。</p>
+        <div class="button-row">
+          <select id="calibrationTarget" aria-label="校正に使う天体"><option value="moon">月を目印にする</option><option value="venus">金星を目印にする</option></select>
+          <button id="prepareCalibrationButton" class="secondary" type="button">目印を表示する</button>
+        </div>
+        <label class="calibration-control">方位（左右）<input id="headingOffsetInput" type="range" min="-30" max="30" step="0.5" value="0" aria-label="方位補正の角度" /><output id="headingOffsetValue">+0.0°</output></label>
+        <label class="calibration-control">上下のずれ<input id="pitchOffsetInput" type="range" min="-20" max="20" step="0.5" value="0" aria-label="上下補正の角度" /><output id="pitchOffsetValue">+0.0°</output></label>
+        <label class="calibration-control">左右傾き<input id="rollOffsetInput" type="range" min="-20" max="20" step="0.5" value="0" aria-label="左右傾き補正の角度" /><output id="rollOffsetValue">+0.0°</output></label>
+        <label class="calibration-control">縦の視野角<input id="vfovInput" type="range" min="30" max="80" step="1" value="43" aria-label="カメラの縦の視野角" /><output id="vfovValue">43°</output></label>
+      </section>
       <div class="button-row">
         <button id="moonButton" type="button" disabled>月を表示する</button>
         <button id="starsButton" type="button" disabled>主要な恒星を表示する</button>
@@ -221,13 +236,20 @@
     const moonButton = document.getElementById("moonButton"), starsButton = document.getElementById("starsButton"), planetsButton = document.getElementById("planetsButton"), namesButton = document.getElementById("namesButton"), patternSelect = document.getElementById("patternSelect");
     const timeValue = document.getElementById("timeValue"), locationValue = document.getElementById("locationValue"), headingValue = document.getElementById("headingValue");
     const orientationQualityValue = document.getElementById("orientationQualityValue"), locationQualityValue = document.getElementById("locationQualityValue");
-    const headingOffsetInput = document.getElementById("headingOffsetInput"), headingOffsetValue = document.getElementById("headingOffsetValue"), resetCalibrationButton = document.getElementById("resetCalibrationButton");
+    const calibrationGuideButton = document.getElementById("calibrationGuideButton"), calibrationPanel = document.getElementById("calibrationPanel"), calibrationTarget = document.getElementById("calibrationTarget"), prepareCalibrationButton = document.getElementById("prepareCalibrationButton");
+    const headingOffsetInput = document.getElementById("headingOffsetInput"), headingOffsetValue = document.getElementById("headingOffsetValue"), pitchOffsetInput = document.getElementById("pitchOffsetInput"), pitchOffsetValue = document.getElementById("pitchOffsetValue"), rollOffsetInput = document.getElementById("rollOffsetInput"), rollOffsetValue = document.getElementById("rollOffsetValue"), vfovInput = document.getElementById("vfovInput"), vfovValue = document.getElementById("vfovValue"), resetCalibrationButton = document.getElementById("resetCalibrationButton");
     const moonValue = document.getElementById("moonValue"), starsValue = document.getElementById("starsValue"), patternValue = document.getElementById("patternValue"), planetsValue = document.getElementById("planetsValue"), actionStatus = document.getElementById("actionStatus");
     let coordinates = null, orientation = null, orientationListening = false, timerId = null;
     let showMoon = false, showStars = false, showPlanets = false, showNames = false, selectedPattern = "none";
     let locationWatchId = null, locationFinishTimerId = null, bestLocation = null;
     let lastOrientationTime = null, lastRawHeading = null, rejectedHeadingCount = 0;
-    let headingOffset = Number(localStorage.getItem("sky-ar-heading-offset") || 0);
+    // 端末ごとの「センサー座標とカメラ座標のずれ」を保存する値です。
+    const CALIBRATION_KEY = "sky-ar-calibration-v3";
+    function loadCalibration() {
+      const fallback = { heading:Number(localStorage.getItem("sky-ar-heading-offset") || 0), pitch:0, roll:0, vfov:43 };
+      try { return { ...fallback, ...JSON.parse(localStorage.getItem(CALIBRATION_KEY) || "{}") }; } catch { return fallback; }
+    }
+    let calibration = loadCalibration();
     let projectedStars = new Map();
     const markerNodes = new Map();
 
@@ -241,11 +263,15 @@
 
     function updateClock() { timeValue.textContent = nowText(); }
     function qualityFromAccuracy(meters) { return meters <= 25 ? "良好" : meters <= 75 ? "利用可能" : "誤差が大きめ"; }
-    function displayHeading() { return orientation === null ? null : norm(orientation.headingRaw + headingOffset); }
-    function updateHeadingOffsetUi() {
-      headingOffsetInput.value = headingOffset;
-      headingOffsetValue.textContent = `${headingOffset >= 0 ? "+" : ""}${headingOffset.toFixed(1)}°`;
-      resetCalibrationButton.disabled = Math.abs(headingOffset) < 0.01;
+    function displayHeading() { return orientation === null ? null : norm(orientation.headingRaw + calibration.heading); }
+    function signedDegrees(value) { return `${value >= 0 ? "+" : ""}${value.toFixed(1)}°`; }
+    function saveCalibration() { localStorage.setItem(CALIBRATION_KEY, JSON.stringify(calibration)); }
+    function updateCalibrationUi() {
+      headingOffsetInput.value = calibration.heading; headingOffsetValue.textContent = signedDegrees(calibration.heading);
+      pitchOffsetInput.value = calibration.pitch; pitchOffsetValue.textContent = signedDegrees(calibration.pitch);
+      rollOffsetInput.value = calibration.roll; rollOffsetValue.textContent = signedDegrees(calibration.roll);
+      vfovInput.value = calibration.vfov; vfovValue.textContent = `${calibration.vfov.toFixed(0)}°`;
+      resetCalibrationButton.disabled = Math.abs(calibration.heading) < .01 && Math.abs(calibration.pitch) < .01 && Math.abs(calibration.roll) < .01 && calibration.vfov === 43;
     }
     function canRender() { return coordinates !== null && orientation !== null; }
     function updateControls() {
@@ -253,6 +279,7 @@
       moonButton.disabled = !enabled; starsButton.disabled = !enabled; planetsButton.disabled = !enabled;
       namesButton.disabled = !enabled || !(showMoon || showStars || showPlanets);
       patternSelect.disabled = !enabled || !showStars;
+      calibrationGuideButton.disabled = !enabled;
     }
 
     async function startCamera() {
@@ -369,11 +396,13 @@
     function project(azimuth, altitude, key) {
       const az = rad(azimuth), alt = rad(altitude);
       const world = [Math.cos(alt)*Math.sin(az), Math.cos(alt)*Math.cos(az), Math.sin(alt)];
-      // 方位補正はここでだけ適用します。補正値を変えてもセンサーの生値は失いません。
+      // 3軸校正は表示用の座標にだけ適用し、センサーの生値は変更しません。
       const calibratedAlpha = norm(360 - displayHeading());
-      let device = rotateZ(world, -rad(calibratedAlpha)); device = rotateX(device, -rad(orientation.beta)); device = rotateY(device, -rad(orientation.gamma));
+      const calibratedBeta = orientation.beta + calibration.pitch;
+      const calibratedGamma = orientation.gamma + calibration.roll;
+      let device = rotateZ(world, -rad(calibratedAlpha)); device = rotateX(device, -rad(calibratedBeta)); device = rotateY(device, -rad(calibratedGamma));
       const forward = -device[2]; if (forward <= .01) return null;
-      const vfov = rad(43), aspect = video.clientWidth / video.clientHeight, hfov = 2 * Math.atan(Math.tan(vfov/2)*aspect);
+      const vfov = rad(calibration.vfov), aspect = video.clientWidth / video.clientHeight, hfov = 2 * Math.atan(Math.tan(vfov/2)*aspect);
       const x = device[0] / forward / Math.tan(hfov/2), y = device[1] / forward / Math.tan(vfov/2);
       const limit = markerNodes.has(key) ? 1.18 : .95;  // 画面端での点滅を少し抑えます。
       if (Math.abs(x) > limit || Math.abs(y) > limit) return null;
@@ -446,14 +475,37 @@
     function togglePlanets() { showPlanets=!showPlanets; planetsButton.textContent=showPlanets ? "太陽系の惑星を隠す" : "太陽系の惑星を表示する"; planetsButton.classList.toggle("active",showPlanets); updateControls(); updateOverlay(); startOverlayTimer(); }
     function toggleNames() { showNames=!showNames; namesButton.textContent=showNames ? "Nameを隠す" : "Name"; namesButton.classList.toggle("active",showNames); markerLayer.classList.toggle("labels-on",showNames); actionStatus.textContent=showNames ? "表示中の天体名を出しました。月はこれまでどおりMoonと表示します。" : "天体名を隠しました。"; actionStatus.className="success"; }
 
-    updateHeadingOffsetUi();
-    headingOffsetInput.addEventListener("input", () => {
-      headingOffset = Number(headingOffsetInput.value); localStorage.setItem("sky-ar-heading-offset", String(headingOffset));
-      updateHeadingOffsetUi(); updateOverlay();
-      actionStatus.textContent = `方位補正を${headingOffset >= 0 ? "+" : ""}${headingOffset.toFixed(1)}°に変更しました。明るい天体に印を合わせるときだけ、少しずつ調整してください。`;
+    function setCalibrationValue(key, value) {
+      calibration[key] = value; saveCalibration(); updateCalibrationUi(); updateOverlay();
+    }
+    function calibrationChanged(label, value) {
+      actionStatus.textContent = `${label}を${signedDegrees(value)}に調整しました。月または金星の印と実物を見比べながら、0.5°ずつ動かしてください。`;
+      actionStatus.className = "success";
+    }
+    updateCalibrationUi();
+    headingOffsetInput.addEventListener("input", () => { setCalibrationValue("heading", Number(headingOffsetInput.value)); calibrationChanged("方位（左右）の補正", calibration.heading); });
+    pitchOffsetInput.addEventListener("input", () => { setCalibrationValue("pitch", Number(pitchOffsetInput.value)); calibrationChanged("上下の補正", calibration.pitch); });
+    rollOffsetInput.addEventListener("input", () => { setCalibrationValue("roll", Number(rollOffsetInput.value)); calibrationChanged("左右傾きの補正", calibration.roll); });
+    vfovInput.addEventListener("input", () => {
+      setCalibrationValue("vfov", Number(vfovInput.value));
+      actionStatus.textContent = `縦の視野角を${calibration.vfov.toFixed(0)}°に調整しました。画面中央の印は動かず、端に近い印ほど位置が変わります。`;
       actionStatus.className = "success";
     });
-    resetCalibrationButton.addEventListener("click", () => { headingOffset = 0; localStorage.removeItem("sky-ar-heading-offset"); updateHeadingOffsetUi(); updateOverlay(); actionStatus.textContent = "方位補正を0°へ戻しました。"; actionStatus.className = "success"; });
+    calibrationGuideButton.addEventListener("click", () => {
+      calibrationPanel.hidden = !calibrationPanel.hidden;
+      calibrationGuideButton.textContent = calibrationPanel.hidden ? "3軸校正を開く" : "3軸校正を閉じる";
+      if (!calibrationPanel.hidden) { actionStatus.textContent = "夜間に月または金星を画面中央へ入れてから、目印を表示するを押してください。太陽の近くへスマホを向けないでください。"; actionStatus.className = "success"; }
+    });
+    prepareCalibrationButton.addEventListener("click", () => {
+      const target = calibrationTarget.value;
+      if (target === "moon") { showMoon = true; moonButton.textContent = "月を隠す"; moonButton.classList.add("active"); }
+      else { showPlanets = true; planetsButton.textContent = "太陽系の惑星を隠す"; planetsButton.classList.add("active"); }
+      showNames = true; namesButton.textContent = "Nameを隠す"; namesButton.classList.add("active"); markerLayer.classList.add("labels-on");
+      updateControls(); updateOverlay(); startOverlayTimer();
+      actionStatus.textContent = target === "moon" ? "月の印を表示しました。月を画面中央に置き、まず方位、次に上下、最後に左右傾きを0.5°ずつ調整してください。" : "金星を含む惑星の印を表示しました。金星が画面内にある夜だけ、金星の名前と実物を合わせてください。";
+      actionStatus.className = "success";
+    });
+    resetCalibrationButton.addEventListener("click", () => { calibration = { heading:0, pitch:0, roll:0, vfov:43 }; localStorage.removeItem(CALIBRATION_KEY); localStorage.removeItem("sky-ar-heading-offset"); updateCalibrationUi(); updateOverlay(); actionStatus.textContent = "方位・上下・左右傾き・視野角の校正を初期値へ戻しました。"; actionStatus.className = "success"; });
     cameraButton.addEventListener("click", startCamera); locationButton.addEventListener("click", getLocation); orientationButton.addEventListener("click", startOrientation);
     moonButton.addEventListener("click", toggleMoon); starsButton.addEventListener("click", toggleStars); planetsButton.addEventListener("click", togglePlanets); namesButton.addEventListener("click", toggleNames);
     patternSelect.addEventListener("change", () => { selectedPattern=patternSelect.value; updateOverlay(); });
