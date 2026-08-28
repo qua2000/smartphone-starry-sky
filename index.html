@@ -354,14 +354,37 @@
     }
 
     async function startCamera() {
+      if (!window.isSecureContext) { status.textContent = "安全なHTTPSページで開いてください。カメラはHTTPページでは利用できません。"; status.className = "error"; return; }
       if (!navigator.mediaDevices?.getUserMedia) { status.textContent = "このブラウザではカメラを利用できません。Android Chromeで開いてください。"; status.className = "error"; return; }
       cameraButton.disabled = true; status.textContent = "カメラの許可を待っています…";
+      let stream = null, lastError = null;
+      // 端末によってはfacingMode指定を受け付けないため、まず背面希望、次に無指定で試します。
+      const constraintsList = [
+        { video:{ facingMode:{ ideal:"environment" } }, audio:false },
+        { video:true, audio:false }
+      ];
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } }, audio:false });
+        for (const constraints of constraintsList) {
+          try { stream = await navigator.mediaDevices.getUserMedia(constraints); break; }
+          catch (error) { lastError = error; if (error.name === "NotAllowedError" || error.name === "SecurityError") break; }
+        }
+        if (!stream) throw lastError || new Error("camera-unavailable");
         video.srcObject = stream; await video.play();
         message.hidden = true; infoCard.hidden = false; locationButton.disabled = false; orientationButton.disabled = false;
-        updateClock(); window.setInterval(updateClock, 1000); resizeCanvas();
-      } catch (error) { console.error(error); status.textContent = "カメラを開始できませんでした。Chromeのカメラ許可を確認してください。"; status.className = "error"; cameraButton.disabled = false; }
+        updateClock(); if (!timerId) timerId = window.setInterval(updateClock, 1000); resizeCanvas();
+      } catch (error) {
+        console.error("Camera start failed:", error);
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        const messages = {
+          NotAllowedError:"カメラの使用が拒否されています。Chromeのサイト設定でカメラを許可してください。",
+          NotFoundError:"利用できるカメラが見つかりません。カメラを使用中の他のアプリを閉じてください。",
+          NotReadableError:"カメラが他のアプリで使用中か、端末がカメラを読めません。カメラアプリを閉じて再試行してください。",
+          SecurityError:"安全なHTTPSページで開いているか確認してください。",
+          AbortError:"カメラの起動が中断されました。もう一度お試しください。"
+        };
+        status.textContent = messages[error.name] || "カメラを開始できませんでした。Chromeのカメラ許可と、他のアプリによるカメラ使用を確認してください。";
+        status.className = "error"; cameraButton.disabled = false;
+      }
     }
 
     function stopLocationWatch() {
